@@ -1,0 +1,73 @@
+services:
+  db:
+    image: postgres:18
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+    volumes:
+      - app-db-data:/var/lib/postgresql/data/pgdata
+    env_file:
+      - .env
+    environment:
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable not set}
+      - POSTGRES_USER=${POSTGRES_USER?Variable not set}
+      - POSTGRES_DB=${POSTGRES_DB?Variable not set}
+
+  prestart:
+    image: ${DOCKER_IMAGE_BACKEND?Variable not set}:${TAG-latest}
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+    command: bash scripts/prestart.sh
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_SERVER=db
+
+  backend:
+    image: ${DOCKER_IMAGE_BACKEND?Variable not set}:${TAG-latest}
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+      prestart:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_SERVER=db
+      - DATA_JOBS_STORAGE_DIR=/data/homefin-data-jobs
+    volumes:
+      - app-data-jobs-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/utils/health-check/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+
+  frontend:
+    image: ${DOCKER_IMAGE_FRONTEND?Variable not set}:${TAG-latest}
+    restart: always
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        - VITE_API_URL=${INTRANET_API_URL?Variable not set}
+        - NODE_ENV=production
+
+volumes:
+  app-db-data:
+  app-data-jobs-data:
