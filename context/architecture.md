@@ -32,13 +32,13 @@
 [Data Jobs]    -> [Transactions]
 [Agent API]    -> [API Tokens]
 [Agent API]    -> [Transactions]
-[Data Jobs]    -> [Local File Storage]
+[Data Jobs]    -> [Persistent Job File Volume]
 ```
 
 ## 依赖边界
 - 认证统一通过 `backend/app/api/deps.py` 注入，优先读取 Session Cookie，其次读取 Bearer Token；两类 Token 使用独立类型声明并绑定用户 `auth_version`，当前前端主流程只使用 Bearer Token。
 - 用户、分类、预算、交易、API Token 和 Dashboard 数据模型都集中在 `backend/app/models.py`。
-- 数据导入导出任务由 `datajob` / `datajoberror` 持久化，结果文件和错误文件落到本地临时目录。
+- 数据导入导出任务由 `datajob` / `datajoberror` 持久化；Compose 运行时的源文件、结果文件和错误文件落到独立持久化任务卷，并按保留期限清理。
 - 交易是财务域核心写模型，分类和预算都为交易提供约束与聚合基础；当前交易主语义字段为 `summary`，并通过 `detail` JSON 承载柔性详情和明细项。
 - Dashboard 不直接写数据，只聚合分类、预算和交易结果。
 - Data Jobs 不直接改变认证模型，只允许管理员发起，并通过后台任务方式按“分类 -> 预算 -> 交易”顺序写入财务数据。
@@ -51,7 +51,7 @@
 - `login_name` 成为主登录标识：后端登录入口按 `login_name` 鉴权，并在需要时兼容邮箱形式输入。
 - MFA 以可选 TOTP 方式接入：当用户存在 `mfa_secret` 时，登录需要额外提供 6 位 `mfa_code`。
 - 生成客户端与手写封装并存：旧模板接口继续走生成客户端，新财务域先落在手写封装，后续如统一生成链路可再收敛。
-- 导入导出任务化：为避免大批量账单 Excel 导入导出阻塞请求，当前通过 FastAPI `BackgroundTasks` + 数据任务表 + 本地文件存储完成异步处理。
+- 导入导出任务化：为避免大批量账单 Excel 导入导出阻塞请求，当前通过 FastAPI `BackgroundTasks` + 数据任务表 + 受控任务文件目录完成异步处理；上传、归档展开、并发数、任务恢复和保留期限均有明确边界。
 - Excel 作为唯一批量交换格式：系统统一以多页签 `.xlsx` 文件承载 `README / Categories / Budgets / Transactions`，其中 `Transactions` 当前使用 `summary / detail_note / detail_items` 作为主要可读交换字段。
 - 兼容性优先：保留 `/users/signup`、`/login`、`/logout`、`/items`、`/admin` 等兼容入口，但不再作为主路径。
 

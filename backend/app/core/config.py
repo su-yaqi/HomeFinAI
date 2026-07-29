@@ -1,6 +1,7 @@
 import secrets
 import warnings
 from typing import Annotated, Any, Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import (
     AnyUrl,
@@ -40,6 +41,13 @@ class Settings(BaseSettings):
     FRONTEND_HOST: str = "http://localhost:5173"
     ENVIRONMENT: Literal["local", "staging", "production"] = "local"
     DATA_JOBS_STORAGE_DIR: str = "/tmp/homefin-data-jobs"
+    DATA_JOB_MAX_UPLOAD_BYTES: int = 25 * 1024 * 1024
+    DATA_JOB_MAX_UNCOMPRESSED_BYTES: int = 100 * 1024 * 1024
+    DATA_JOB_MAX_ARCHIVE_FILES: int = 100
+    DATA_JOB_MAX_ACTIVE_JOBS: int = 2
+    DATA_JOB_RETENTION_DAYS: int = 30
+    DATA_JOB_STALE_MINUTES: int = 60
+    BUSINESS_TIMEZONE: str = "Asia/Shanghai"
 
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
@@ -99,11 +107,29 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER_PASSWORD: str
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
-        if value == "changethis":
+        normalized = (value or "").strip().lower()
+        placeholder_prefixes = (
+            "changethis",
+            "replace-with",
+            "replace_me",
+            "replace-me",
+            "<",
+        )
+        if not normalized or normalized.startswith(placeholder_prefixes):
             message = (
-                f'The value of {var_name} is "changethis", '
-                "for security, please change it, at least for deployments."
+                f"The value of {var_name} is empty or still a placeholder; "
+                "replace it with a strong secret before deployment."
             )
+            if self.ENVIRONMENT == "local":
+                warnings.warn(message, stacklevel=1)
+            else:
+                raise ValueError(message)
+
+    def _check_secret_length(
+        self, var_name: str, value: str | None, *, minimum: int
+    ) -> None:
+        if value and len(value) < minimum:
+            message = f"The value of {var_name} must be at least {minimum} characters."
             if self.ENVIRONMENT == "local":
                 warnings.warn(message, stacklevel=1)
             else:
@@ -116,6 +142,39 @@ class Settings(BaseSettings):
         self._check_default_secret(
             "FIRST_SUPERUSER_PASSWORD", self.FIRST_SUPERUSER_PASSWORD
         )
+        self._check_secret_length("SECRET_KEY", self.SECRET_KEY, minimum=32)
+        self._check_secret_length(
+            "FIRST_SUPERUSER_PASSWORD", self.FIRST_SUPERUSER_PASSWORD, minimum=12
+        )
+        self._check_secret_length(
+            "POSTGRES_PASSWORD", self.POSTGRES_PASSWORD, minimum=12
+        )
+
+        if self.ENVIRONMENT != "local":
+            sensitive_values = {
+                self.SECRET_KEY,
+                self.POSTGRES_PASSWORD,
+                self.FIRST_SUPERUSER_PASSWORD,
+            }
+            if len(sensitive_values) != 3:
+                raise ValueError(
+                    "Security-sensitive credentials must use distinct values."
+                )
+
+        if self.DATA_JOB_MAX_UPLOAD_BYTES <= 0:
+            raise ValueError("DATA_JOB_MAX_UPLOAD_BYTES must be greater than zero")
+        if self.DATA_JOB_MAX_UNCOMPRESSED_BYTES < self.DATA_JOB_MAX_UPLOAD_BYTES:
+            raise ValueError(
+                "DATA_JOB_MAX_UNCOMPRESSED_BYTES must be at least DATA_JOB_MAX_UPLOAD_BYTES"
+            )
+        if self.DATA_JOB_MAX_ARCHIVE_FILES <= 0 or self.DATA_JOB_MAX_ACTIVE_JOBS <= 0:
+            raise ValueError("Data job limits must be greater than zero")
+        if self.DATA_JOB_RETENTION_DAYS <= 0 or self.DATA_JOB_STALE_MINUTES <= 0:
+            raise ValueError("Data job retention values must be greater than zero")
+        try:
+            ZoneInfo(self.BUSINESS_TIMEZONE)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError("BUSINESS_TIMEZONE must be a valid IANA timezone") from exc
 
         return self
 

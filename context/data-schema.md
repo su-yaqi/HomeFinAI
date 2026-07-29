@@ -155,9 +155,9 @@ Agent HMAC 请求的防重放记录表。
 | status | varchar(30) | 否 | `PENDING` | 任务状态，支持 `PENDING / PROCESSING / SUCCEEDED / PARTIAL_SUCCESS / FAILED / CANCELLED` |
 | template_version | varchar(20) | 否 | `v2` | Excel 模板或导出格式版本 |
 | created_by | UUID | 否 | - | 发起任务的管理员用户 |
-| source_file_path | varchar(500) | 是 | `null` | 导入源文件落盘路径 |
-| result_file_path | varchar(500) | 是 | `null` | 导出结果文件路径 |
-| error_file_path | varchar(500) | 是 | `null` | 导入错误明细文件路径 |
+| source_file_path | varchar(500) | 是 | `null` | 导入源文件在受控任务目录中的落盘路径 |
+| result_file_path | varchar(500) | 是 | `null` | 导出结果在受控任务目录中的文件路径 |
+| error_file_path | varchar(500) | 是 | `null` | 导入错误明细在受控任务目录中的文件路径 |
 | total_rows | integer | 否 | `0` | 任务识别到的总数据行数 |
 | success_rows | integer | 否 | `0` | 成功处理行数 |
 | failed_rows | integer | 否 | `0` | 失败处理行数 |
@@ -199,3 +199,4 @@ Agent HMAC 请求的防重放记录表。
 - `TransactionPublic` 当前返回 `summary`、`detail`、`description`、`handler_user_id` 和 `handler_display_name`；其中 `description` 为兼容回写字段，默认与 `summary` 对齐。
 - `HandlerUsersPublic` 供交易表单与筛选器读取经手人候选列表，返回值同样遵循统一分页结构。
 - `DataJobPublic` 现返回 `has_result_file` 与 `has_error_file`，供前端决定是否展示下载入口；当前 Excel 模板版本为 `v2`。
+- Compose 运行时将数据任务目录挂载为独立持久化卷；任务记录及关联文件默认保留 30 天。
