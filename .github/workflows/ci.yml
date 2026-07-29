@@ -69,9 +69,12 @@ jobs:
         run: |
           bash -n scripts/change-policy.sh
           bash -n scripts/ci-plan.sh
+          bash -n scripts/deploy-release.sh
+          bash -n scripts/test-release-deploy.sh
           bash -n scripts/validate-compose.sh
           make test-change-policy
           make test-ci-plan
+          make test-release-deploy
       - name: Report selected risk
         env:
           INFERRED_RISK: ${{ needs.plan.outputs.risk }}
@@ -297,3 +300,134 @@ jobs:
         with:
           jobs: ${{ toJSON(needs) }}
           allowed-skips: backend,frontend,artifacts,compose,e2e
+
+  build-images:
+    name: Build immutable release images
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      github.repository_owner != 'fastapi'
+    needs:
+      - ci-required
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      backend-image: ${{ steps.images.outputs.backend-name }}@${{ steps.backend.outputs.digest }}
+      frontend-image: ${{ steps.images.outputs.frontend-name }}@${{ steps.frontend.outputs.digest }}
+    steps:
+      - name: Checkout the verified commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Select registry image names
+        id: images
+        run: |
+          repository="${GITHUB_REPOSITORY,,}"
+          backend_name="ghcr.io/${repository}/backend"
+          frontend_name="ghcr.io/${repository}/frontend"
+          {
+            printf 'backend-name=%s\n' "${backend_name}"
+            printf 'backend-tag=%s:%s\n' "${backend_name}" "${GITHUB_SHA}"
+            printf 'frontend-name=%s\n' "${frontend_name}"
+            printf 'frontend-tag=%s:%s\n' "${frontend_name}" "${GITHUB_SHA}"
+          } >>"${GITHUB_OUTPUT}"
+      - name: Log in to the GitHub Container Registry
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1 # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push backend once
+        id: backend
+        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4 # v6.19.2
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: ${{ steps.images.outputs.backend-tag }}
+      - name: Build and push environment-neutral frontend once
+        id: frontend
+        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4 # v6.19.2
+        with:
+          context: .
+          file: frontend/Dockerfile
+          push: true
+          tags: ${{ steps.images.outputs.frontend-tag }}
+          build-args: |
+            VITE_API_URL=
+      - name: Record the immutable promotion manifest
+        env:
+          BACKEND_NAME: ${{ steps.images.outputs.backend-name }}
+          BACKEND_DIGEST: ${{ steps.backend.outputs.digest }}
+          FRONTEND_NAME: ${{ steps.images.outputs.frontend-name }}
+          FRONTEND_DIGEST: ${{ steps.frontend.outputs.digest }}
+        run: |
+          {
+            printf 'DEPLOY_SHA\t%s\n' "${GITHUB_SHA}"
+            printf 'HOMEFIN_BACKEND_IMAGE\t%s@%s\n' "${BACKEND_NAME}" "${BACKEND_DIGEST}"
+            printf 'HOMEFIN_FRONTEND_IMAGE\t%s@%s\n' "${FRONTEND_NAME}" "${FRONTEND_DIGEST}"
+          } >release-manifest.tsv
+      - name: Store the immutable promotion manifest
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: release-manifest-${{ github.sha }}
+          path: release-manifest.tsv
+          overwrite: true
+          retention-days: 90
+
+  deploy-staging:
+    name: Deploy verified images to staging
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      github.repository_owner != 'fastapi'
+    needs:
+      - build-images
+    environment: staging
+    runs-on:
+      - self-hosted
+      - staging
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+    env:
+      ENVIRONMENT: staging
+      STACK_NAME: ${{ secrets.STACK_NAME }}
+      DEPLOY_SHA: ${{ github.sha }}
+      HOMEFIN_BACKEND_IMAGE: ${{ needs.build-images.outputs.backend-image }}
+      HOMEFIN_FRONTEND_IMAGE: ${{ needs.build-images.outputs.frontend-image }}
+      HOMEFIN_BACKUP_DIR: ${{ secrets.HOMEFIN_BACKUP_DIR }}
+      HOMEFIN_DEPLOY_STATE_DIR: ${{ secrets.HOMEFIN_DEPLOY_STATE_DIR }}
+      BACKEND_URL: ${{ secrets.BACKEND_URL }}
+      FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      FIRST_SUPERUSER: ${{ secrets.FIRST_SUPERUSER }}
+      FIRST_SUPERUSER_PASSWORD: ${{ secrets.FIRST_SUPERUSER_PASSWORD }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      POSTGRES_USER: ${{ vars.POSTGRES_USER || 'postgres' }}
+      POSTGRES_DB: ${{ vars.POSTGRES_DB || 'app' }}
+      FRONTEND_HOST: ${{ secrets.FRONTEND_URL }}
+      BACKEND_CORS_ORIGINS: ${{ secrets.BACKEND_CORS_ORIGINS }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      EMAILS_FROM_EMAIL: ${{ secrets.EMAILS_FROM_EMAIL }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      BUSINESS_TIMEZONE: ${{ vars.BUSINESS_TIMEZONE || 'Asia/Shanghai' }}
+    steps:
+      - name: Checkout the verified commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Log in to the GitHub Container Registry
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1 # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Backup, migrate, deploy, and verify staging
+        run: bash scripts/deploy-release.sh

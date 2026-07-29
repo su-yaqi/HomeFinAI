@@ -25,7 +25,9 @@ context/
 │   ├── v0.7.md
 │   ├── v0.8.md
 │   ├── v0.9.md
-│   └── v0.10.md
+│   ├── v0.10.md
+│   ├── v0.11.md
+│   └── v0.12.md
 └── modules/
     ├── app-shell/
     ├── auth/
@@ -55,4 +57,5 @@ context/
 - `root + modules/*`：表示当前代码已实现状态。
 - `prds/v0.7/`：表示当前最新一轮移动端响应式需求设计依据。
 - `engineering.md`：表示当前 S/M/H 风险、context impact、完成证据和分支策略。
-- `changelogs/v0.10.md`：表示当前最新的开发流程管控实际交付结果。
+- `changelogs/v0.12.md`：表示当前最新的安全发布链路代码交付结果；外部 staging
+  配置和验证状态以该记录中的边界为准。

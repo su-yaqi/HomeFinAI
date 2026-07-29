@@ -70,6 +70,17 @@
 - 内网正式部署继续显式使用 `compose.yml + compose.intranet.yml`，保持 HTTP、
   Frontend `8080`、Backend `8000`、按需 Adminer `8081` 以及正式持久化和备份语义，
   不继承本地 slot 或开发 profile。
+- 发布运行时额外加载 `compose.release.yml`，取消前后端的构建定义，只接受
+  `sha256` digest 固定的 GHCR 镜像。前端镜像使用同源 `/api`，由容器内 Nginx
+  转发到 Backend，因此 staging 与 production 晋级同一镜像，不写入环境专属 API
+  地址。
+- `main` 的单一 CI 门禁通过后才构建镜像；staging 消费该次构建输出的 digest。
+  Production Release 必须指向 `main` 提交，并找到同一 SHA 的完整成功 CI/staging
+  运行、下载该运行保存的 digest 清单后才能进入 GitHub `production` Environment
+  批准，不能在发布时重新解析可移动 tag。
+- 发布脚本按“拉取不可变镜像 -> 启动并检查数据库 -> 宿主机预迁移备份 -> 单次迁移
+  -> 应用切换 -> HTTP 健康检查”执行。迁移失败不切换应用；应用健康失败只回退上一组
+  镜像，不自动降级数据库 schema。
 
 ## 非功能性约束
 | 类型 | 要求 |

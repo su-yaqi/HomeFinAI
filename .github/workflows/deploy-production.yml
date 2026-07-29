@@ -5,20 +5,115 @@ on:
     types:
       - published
 
-permissions: {}
+permissions:
+  actions: read
+  contents: read
 
 jobs:
+  verify:
+    name: Verify released commit and successful staging run
+    if: github.repository_owner != 'fastapi'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      deploy-sha: ${{ steps.target.outputs.sha }}
+      backend-image: ${{ steps.manifest.outputs.backend-image }}
+      frontend-image: ${{ steps.manifest.outputs.frontend-image }}
+    steps:
+      - name: Checkout the release target
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.release.tag_name }}
+      - name: Require the release target to belong to main
+        id: target
+        run: |
+          target_sha="$(git rev-parse HEAD)"
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "${target_sha}" origin/main
+          printf 'sha=%s\n' "${target_sha}" >>"${GITHUB_OUTPUT}"
+      - name: Require successful CI, image build, and staging for the same commit
+        id: successful-run
+        uses: actions/github-script@3a2844b7c99d26ecc95b0ef5c9c24b3a2adf89cc # v8.0.0
+        env:
+          TARGET_SHA: ${{ steps.target.outputs.sha }}
+        with:
+          script: |
+            const response = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: "ci.yml",
+              branch: "main",
+              event: "push",
+              status: "completed",
+              head_sha: process.env.TARGET_SHA,
+              per_page: 100,
+            });
+            const successful = response.data.workflow_runs.find(
+              (run) => run.conclusion === "success",
+            );
+            if (!successful) {
+              core.setFailed(
+                `No successful CI + immutable image + staging run exists for ${process.env.TARGET_SHA}`,
+              );
+              return;
+            }
+            core.setOutput("run-id", successful.id);
+            core.info(`Verified workflow run: ${successful.html_url}`);
+      - name: Download the digest manifest from the successful run
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-manifest-${{ steps.target.outputs.sha }}
+          path: verified-release
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ steps.successful-run.outputs.run-id }}
+      - name: Validate the immutable promotion manifest
+        id: manifest
+        env:
+          TARGET_SHA: ${{ steps.target.outputs.sha }}
+        run: |
+          manifest="verified-release/release-manifest.tsv"
+          manifest_sha="$(awk -F '\t' '$1 == "DEPLOY_SHA" {print $2; exit}' "${manifest}")"
+          backend_image="$(awk -F '\t' '$1 == "HOMEFIN_BACKEND_IMAGE" {print $2; exit}' "${manifest}")"
+          frontend_image="$(awk -F '\t' '$1 == "HOMEFIN_FRONTEND_IMAGE" {print $2; exit}' "${manifest}")"
+          if [[ "${manifest_sha}" != "${TARGET_SHA}" ]]; then
+            printf 'Promotion manifest SHA does not match the release target.\n' >&2
+            exit 1
+          fi
+          digest_pattern='^[a-z0-9.-]+(:[0-9]+)?/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$'
+          if [[ ! "${backend_image}" =~ ${digest_pattern} || ! "${frontend_image}" =~ ${digest_pattern} ]]; then
+            printf 'Promotion manifest does not contain immutable image references.\n' >&2
+            exit 1
+          fi
+          {
+            printf 'backend-image=%s\n' "${backend_image}"
+            printf 'frontend-image=%s\n' "${frontend_image}"
+          } >>"${GITHUB_OUTPUT}"
+
   deploy:
+    name: Approve and deploy the verified release
+    needs:
+      - verify
     environment: production
-    # Do not deploy in the main repository, only in user projects
     if: github.repository_owner != 'fastapi'
     runs-on:
       - self-hosted
       - production
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
     env:
       ENVIRONMENT: production
-      DOMAIN: ${{ secrets.DOMAIN_PRODUCTION }}
-      STACK_NAME: ${{ secrets.STACK_NAME_PRODUCTION }}
+      STACK_NAME: ${{ secrets.STACK_NAME }}
+      DEPLOY_SHA: ${{ needs.verify.outputs.deploy-sha }}
+      HOMEFIN_BACKEND_IMAGE: ${{ needs.verify.outputs.backend-image }}
+      HOMEFIN_FRONTEND_IMAGE: ${{ needs.verify.outputs.frontend-image }}
+      HOMEFIN_BACKUP_DIR: ${{ secrets.HOMEFIN_BACKUP_DIR }}
+      HOMEFIN_DEPLOY_STATE_DIR: ${{ secrets.HOMEFIN_DEPLOY_STATE_DIR }}
+      BACKEND_URL: ${{ secrets.BACKEND_URL }}
+      FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
       SECRET_KEY: ${{ secrets.SECRET_KEY }}
       FIRST_SUPERUSER: ${{ secrets.FIRST_SUPERUSER }}
       FIRST_SUPERUSER_PASSWORD: ${{ secrets.FIRST_SUPERUSER_PASSWORD }}
@@ -27,29 +122,23 @@ jobs:
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
       EMAILS_FROM_EMAIL: ${{ secrets.EMAILS_FROM_EMAIL }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-      POSTGRES_USER: postgres
-      POSTGRES_DB: app
-      FRONTEND_HOST: ${{ secrets.FRONTEND_HOST_PRODUCTION }}
-      BACKEND_CORS_ORIGINS: ${{ secrets.BACKEND_CORS_ORIGINS_PRODUCTION }}
-      BUSINESS_TIMEZONE: Asia/Shanghai
-      DOCKER_IMAGE_BACKEND: homefin-production-backend
-      DOCKER_IMAGE_FRONTEND: homefin-production-frontend
-      INTRANET_API_URL: ${{ secrets.INTRANET_API_URL_PRODUCTION }}
+      POSTGRES_USER: ${{ vars.POSTGRES_USER || 'postgres' }}
+      POSTGRES_DB: ${{ vars.POSTGRES_DB || 'app' }}
+      FRONTEND_HOST: ${{ secrets.FRONTEND_URL }}
+      BACKEND_CORS_ORIGINS: ${{ secrets.BACKEND_CORS_ORIGINS }}
+      BUSINESS_TIMEZONE: ${{ vars.BUSINESS_TIMEZONE || 'Asia/Shanghai' }}
       SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
     steps:
-      - name: Checkout
+      - name: Checkout the verified release commit
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - name: Validate deployment configuration
-        run: |
-          for variable in STACK_NAME SECRET_KEY FIRST_SUPERUSER FIRST_SUPERUSER_PASSWORD POSTGRES_PASSWORD FRONTEND_HOST BACKEND_CORS_ORIGINS INTRANET_API_URL; do
-            if [ -z "${!variable}" ]; then
-              echo "Required deployment variable is missing: ${variable}" >&2
-              exit 1
-            fi
-          done
-      - name: Build production services
-        run: docker compose -f compose.yml -f compose.intranet.yml --project-name "$STACK_NAME" build
-      - name: Start production services
-        run: docker compose -f compose.yml -f compose.intranet.yml --project-name "$STACK_NAME" up -d
+          ref: ${{ needs.verify.outputs.deploy-sha }}
+      - name: Log in to the GitHub Container Registry
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1 # v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Backup, migrate, deploy, and verify production
+        run: bash scripts/deploy-release.sh

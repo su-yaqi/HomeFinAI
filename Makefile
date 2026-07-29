@@ -10,7 +10,8 @@ export DEV_PORT_BASE
 
 .PHONY: help dev-env dev-check dev-config dev-up dev-restart dev-down dev-ps dev-logs \
 	adminer-up adminer-down mail-up mail-down playwright-ui test-backend test-e2e \
-	change-plan change-check test-change-policy test-ci-plan validate-compose
+	change-plan change-check test-change-policy test-ci-plan test-release-deploy \
+	validate-compose
 
 help:
 	@echo "HomeFin local development"
@@ -32,7 +33,8 @@ help:
 	@echo "  make change-check              Validate risk, context, and evidence"
 	@echo "  make test-change-policy        Test the change policy checker"
 	@echo "  make test-ci-plan              Test path/risk CI selection"
-	@echo "  make validate-compose          Validate dev and intranet Compose files"
+	@echo "  make test-release-deploy       Test deployment safety and image rollback"
+	@echo "  make validate-compose          Validate dev, intranet, and release Compose"
 	@echo ""
 	@echo "Default slot 0: frontend 21000, backend 21001."
 
@@ -92,6 +94,9 @@ test-change-policy:
 
 test-ci-plan:
 	@bash scripts/test-ci-plan.sh
+
+test-release-deploy:
+	@bash scripts/test-release-deploy.sh
 
 validate-compose:
 	@bash scripts/validate-compose.sh

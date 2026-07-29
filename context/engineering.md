@@ -11,6 +11,7 @@
 - 规则脚本回归：`make test-change-policy`
 - CI 路径/风险规划回归：`make test-ci-plan`
 - Compose 与备份配置校验：`make validate-compose`
+- 发布备份、迁移停止与镜像回退回归：`make test-release-deploy`
 
 ## S/M/H 风险等级
 
@@ -55,7 +56,21 @@ E2E，H 路径强制选择完整后端、前端、E2E、Compose 和制品校验�
 工作流仅保留为手动诊断，不再各自产生 PR/main required check。
 
 制品校验覆盖冻结锁文件、生成客户端无漂移、Alembic 单一迁移头、开发/内网 Compose
-渲染、内网固定端口和 PostgreSQL 定时备份配置。
+渲染、内网固定端口、PostgreSQL 定时备份，以及 release 覆盖无构建定义、只引用
+不可变镜像。
+
+## 安全发布
+
+`main` 完整 CI 通过后，统一 CI 工作流以完整 commit SHA 为 tag 各构建一次 Backend
+和环境无关 Frontend 镜像，并推送 GHCR。Staging 直接使用构建步骤返回的 digest；
+Production Release 先验证 tag 提交属于 `main` 且同一 SHA 的 CI、镜像构建和 staging
+整体成功，再从该成功运行下载已保存的 digest 清单并等待 `production` Environment
+批准。Production 不重新解析 tag。
+
+`scripts/deploy-release.sh` 只接受 digest 镜像和稳定 Compose project name。它在迁移
+前生成并校验宿主机 PostgreSQL 备份，迁移失败停止；启动或健康检查失败时使用记录的
+上一组 digest 做应用镜像回退，不假设数据库可以自动回滚。正式执行仍依赖仓库
+Environment、Secrets、GHCR 权限、Runner 标签和备份/NAS 目录完成外部配置。
 
 ## 分支与版本
 

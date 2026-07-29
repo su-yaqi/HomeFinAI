@@ -1,7 +1,6 @@
-#! /usr/bin/env bash
+#!/usr/bin/env bash
 
-set -e
-set -x
+set -Eeuo pipefail
 
 # Let the DB start
 python app/backend_pre_start.py
