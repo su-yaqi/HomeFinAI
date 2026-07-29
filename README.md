@@ -160,6 +160,7 @@ HomeFin/
 ├── context/        # Living product, API, schema, UI, and changelog documentation
 ├── docs/           # Development and deployment documents
 ├── scripts/        # Utility scripts such as test and client generation
+├── AGENTS.md        # Repository safety, risk, and completion rules
 ├── Makefile         # Stable local development and test entrypoints
 ├── compose.yml
 ├── compose.override.yml
@@ -171,6 +172,7 @@ HomeFin/
 - Backend guide: [backend/README.md](backend/README.md)
 - Frontend guide: [frontend/README.md](frontend/README.md)
 - Engineering conventions: [docs/development-guide.md](docs/development-guide.md)
+- Development workflow: [docs/development-workflow.md](docs/development-workflow.md)
 - Local multi-instance development: [docs/local-development.md](docs/local-development.md)
 - Intranet deployment: [docs/intranet-production-validation-deployment.md](docs/intranet-production-validation-deployment.md)
 - Product context: [context/readme.md](context/readme.md)
@@ -204,7 +206,11 @@ The implemented product state and version evolution are tracked in:
 
 ## Contributing
 
-Issues and pull requests are welcome. Before making larger changes, it is recommended to read the engineering conventions and current context docs first so new work stays aligned with the existing architecture and product direction.
+Issues and pull requests are welcome. Before changing the repository, read
+[AGENTS.md](AGENTS.md), the
+[development workflow](docs/development-workflow.md), the engineering
+conventions, and the current context docs. Use `make change-plan` to review the
+minimum S/M/H risk and `make change-check` before declaring the work complete.
 
 ## License
 

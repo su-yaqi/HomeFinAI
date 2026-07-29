@@ -8,6 +8,7 @@ context/
 ├── readme.md
 ├── project.md
 ├── architecture.md
+├── engineering.md
 ├── data-schema.md
 ├── apis.md
 ├── ui.md
@@ -23,7 +24,8 @@ context/
 │   ├── v0.6.md
 │   ├── v0.7.md
 │   ├── v0.8.md
-│   └── v0.9.md
+│   ├── v0.9.md
+│   └── v0.10.md
 └── modules/
     ├── app-shell/
     ├── auth/
@@ -52,4 +54,5 @@ context/
 ## 当前状态说明
 - `root + modules/*`：表示当前代码已实现状态。
 - `prds/v0.7/`：表示当前最新一轮移动端响应式需求设计依据。
-- `changelogs/v0.9.md`：表示当前最新的本地多实例开发环境与测试隔离实际交付结果。
+- `engineering.md`：表示当前 S/M/H 风险、context impact、完成证据和分支策略。
+- `changelogs/v0.10.md`：表示当前最新的开发流程管控实际交付结果。

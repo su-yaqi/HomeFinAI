@@ -9,7 +9,8 @@ export DEV_SLOT
 export DEV_PORT_BASE
 
 .PHONY: help dev-env dev-check dev-config dev-up dev-restart dev-down dev-ps dev-logs \
-	adminer-up adminer-down mail-up mail-down playwright-ui test-backend test-e2e
+	adminer-up adminer-down mail-up mail-down playwright-ui test-backend test-e2e \
+	change-plan change-check test-change-policy
 
 help:
 	@echo "HomeFin local development"
@@ -27,6 +28,9 @@ help:
 	@echo "  make playwright-ui             Run Playwright UI on demand"
 	@echo "  make test-backend              Run backend tests in an isolated project"
 	@echo "  make test-e2e                  Run E2E tests in an isolated project"
+	@echo "  make change-plan               Report the minimum change risk"
+	@echo "  make change-check              Validate risk, context, and evidence"
+	@echo "  make test-change-policy        Test the change policy checker"
 	@echo ""
 	@echo "Default slot 0: frontend 21000, backend 21001."
 
@@ -74,3 +78,12 @@ test-backend:
 
 test-e2e:
 	@bash scripts/dev.sh test-e2e
+
+change-plan:
+	@bash scripts/change-policy.sh
+
+change-check:
+	@bash scripts/change-policy.sh --check
+
+test-change-policy:
+	@bash scripts/test-change-policy.sh

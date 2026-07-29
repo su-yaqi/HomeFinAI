@@ -32,6 +32,8 @@ This guide defines how to extend the current project template safely and consist
 | Infra/ops | Docker Compose, GitHub Actions, optional Sentry |
 
 ## Source Of Truth
+- Repository safety, risk, and completion rules: `AGENTS.md`
+- Change workflow and evidence contract: `docs/development-workflow.md`
 - Engineering rules and collaboration guidance: `docs/development-guide.md`
 - Current implemented product state: `context/*.md` and `context/modules/*`
 - Backend API contracts: backend code plus generated OpenAPI schema
@@ -186,16 +188,21 @@ bash scripts/generate-client.sh
 Run this whenever backend OpenAPI changes. The generated files under `frontend/src/client` should not be manually edited.
 
 ## Documentation Update Rules
-Every meaningful feature change should update two layers:
-1. Code and tests
-2. `context` documentation for the implemented state
+Every change must record its `context impact` as `updated` or `none`.
+Update `context` only when implemented product semantics, interfaces, data,
+architecture, or runtime boundaries changed. For `none`, record the concrete
+reason in the PR or delivery report; do not edit context files mechanically.
 
-Minimum expected documentation updates:
+When the impact is `updated`, use the narrowest accurate files:
 - New module or page: update `context/ui.md` and relevant `context/modules/*/ui.md`
 - New endpoint or response change: update `context/apis.md` and relevant `context/modules/*/api.md`
 - New entity or field: update `context/data-schema.md`
 - New cross-cutting behavior or boundaries: update `context/architecture.md`
 - Shipped version scope: update the latest changelog entry
+
+Use `make change-plan` before implementation and `make change-check` before
+completion. The complete S/M/H contract, evidence variables, branch rules, and
+definition of done are in `docs/development-workflow.md`.
 
 ## Recommended Development Workflow
 1. Check `context/` first to understand the current implemented shape.
@@ -204,7 +211,8 @@ Minimum expected documentation updates:
 4. Regenerate the frontend client if OpenAPI changed.
 5. Implement UI using existing shared primitives and feature patterns.
 6. Add or update automated tests.
-7. Refresh `context` documentation to match the new state.
+7. Record context impact and update only the facts that actually changed.
+8. Validate risk, tests, context handling, and traceability before committing.
 
 ## Anti-Patterns To Avoid
 - Bypassing the generated API client for standard backend calls
