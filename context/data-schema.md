@@ -1,9 +1,9 @@
 # 数据模型
 
-> v0.5 后，项目的数据核心已经从 `user + item` 扩展到 `user + category + budget + transaction + apitoken + datajob + datajoberror`，其中 `item` 仍作为模板兼容表保留；`transaction` 额外通过 `handler_user_id` 关联经手人用户，并使用 `summary + detail` 承载账单摘要和柔性详情；`datajob` / `datajoberror` 承载系统级导入导出任务。
+> v0.8 后，项目的数据核心已经扩展到 `user + item + category + budget + transaction + apitoken + apitokennonce + datajob + datajoberror`；其中 `item` 仍作为模板兼容表保留，`transaction` 通过 `handler_user_id` 关联经手人用户并使用 `summary + detail` 承载账单摘要和柔性详情，`apitokennonce` 承载 Agent HMAC 防重放状态。
 
 ## 命名规范
-- 表名：由 SQLModel 根据类名推导，当前实际为 `user`、`item`、`category`、`budget`、`transaction`、`apitoken`、`datajob`、`datajoberror`
+- 表名：由 SQLModel 根据类名推导，当前实际为 `user`、`item`、`category`、`budget`、`transaction`、`apitoken`、`apitokennonce`、`datajob`、`datajoberror`
 - 字段名：Python 侧统一使用 snake_case
 - 主键：统一使用 UUID
 - 时间：统一使用 UTC 时间，`created_at` / `last_used_at` 为 timezone-aware datetime
@@ -26,6 +26,7 @@ User 1 ──── N Transaction(owner_id)
 User 1 ──── N Transaction(handler_user_id)
 User 1 ──── N ApiToken
 User 1 ──── N DataJob
+ApiToken 1 ──── N ApiTokenNonce
 
 Category 1 ──── N Transaction
 Budget   1 ──── N Transaction
@@ -45,6 +46,7 @@ DataJob  1 ──── N DataJobError
 | login_name | varchar(100) | 否 | - | 唯一登录名，当前主登录标识 |
 | hashed_password | varchar | 否 | - | 密码哈希 |
 | mfa_secret | varchar(255) | 是 | `null` | TOTP Secret，存在时登录需 MFA |
+| auth_version | integer | 否 | `0` | 认证版本；密码变化时递增并撤销旧登录态和重置 Token |
 | is_active | boolean | 否 | `true` | 是否可用 |
 | is_superuser | boolean | 否 | `false` | 是否管理员 |
 | full_name | varchar(255) | 是 | `null` | 展示名 |
@@ -78,6 +80,11 @@ DataJob  1 ──── N DataJobError
 | color | varchar(20) | 否 | - | 分类颜色，要求 `#RGB` 或 `#RRGGBB` |
 | owner_id | UUID | 否 | - | 归属用户 |
 | created_at | timestamptz | 是 | 当前 UTC 时间 | 创建时间 |
+
+**约束**
+- `(owner_id, name)` 使用数据库唯一约束，防止并发创建同名分类。
+- `color` 使用 PostgreSQL Check Constraint 限制为 `#RGB` 或 `#RRGGBB`。
+- 应用层沿父分类链检查并拒绝自引用或多层级环。
 
 ### budget
 用户预算表。
@@ -124,9 +131,19 @@ DataJob  1 ──── N DataJobError
 | token_hash | varchar(255) | 否 | - | 明文 Token 哈希 |
 | secret_hash | varchar(255) | 是 | `null` | HMAC Secret 哈希 |
 | is_active | boolean | 否 | `true` | 是否启用 |
-| created_by | UUID | 否 | - | 创建人 |
+| created_by | UUID | 否 | - | 创建人；用户删除时 Token 级联删除 |
 | last_used_at | timestamptz | 是 | `null` | 最后一次成功使用时间 |
 | created_at | timestamptz | 是 | 当前 UTC 时间 | 创建时间 |
+
+### apitokennonce
+Agent HMAC 请求的防重放记录表。
+
+| 字段 | 类型 | 可空 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| id | UUID | 否 | `uuid4()` | 主键 |
+| token_id | UUID | 否 | - | 关联 `apitoken.id`，Token 删除时级联删除 |
+| nonce | varchar(128) | 否 | - | 单次请求随机值，与 `token_id` 组成唯一约束 |
+| created_at | timestamptz | 否 | 当前 UTC 时间 | 接受请求的时间，用于清理过期 Nonce |
 
 ### datajob
 系统级数据导入导出任务表。

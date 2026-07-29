@@ -1,13 +1,15 @@
+import re
 import uuid
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, func, select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.models import (
-    Category,
     CategoriesPublic,
+    Category,
     CategoryCreate,
     CategoryPublic,
     CategoryUpdate,
@@ -19,8 +21,40 @@ router = APIRouter(prefix="/categories", tags=["categories"])
 
 
 def _validate_color(color: str) -> None:
-    if not color.startswith("#") or len(color) not in {4, 7}:
+    if re.fullmatch(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?", color) is None:
         raise HTTPException(status_code=422, detail="Invalid color")
+
+
+def _validate_category_parent(
+    session: SessionDep,
+    *,
+    owner_id: uuid.UUID,
+    category_id: uuid.UUID | None,
+    parent_id: uuid.UUID | None,
+) -> None:
+    if parent_id is None:
+        return
+    visited: set[uuid.UUID] = set()
+    current_id: uuid.UUID | None = parent_id
+    while current_id is not None:
+        if current_id == category_id or current_id in visited:
+            raise HTTPException(
+                status_code=400, detail="Category hierarchy cannot contain a cycle"
+            )
+        visited.add(current_id)
+        parent = session.get(Category, current_id)
+        if not parent or parent.owner_id != owner_id:
+            raise HTTPException(status_code=400, detail="Invalid parent category")
+        current_id = parent.parent_id
+
+
+def _commit_category(session: SessionDep, category: Category) -> None:
+    try:
+        session.add(category)
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=409, detail="Category name already exists")
 
 
 @router.get("/", response_model=CategoriesPublic)
@@ -36,7 +70,9 @@ def read_categories(
         page=page, page_size=page_size, skip=skip, limit=limit
     )
     count_statement = (
-        select(func.count()).select_from(Category).where(Category.owner_id == current_user.id)
+        select(func.count())
+        .select_from(Category)
+        .where(Category.owner_id == current_user.id)
     )
     count = session.exec(count_statement).one()
     statement = (
@@ -58,18 +94,21 @@ def create_category(
     *, session: SessionDep, current_user: CurrentUser, category_in: CategoryCreate
 ) -> Any:
     _validate_color(category_in.color)
-    if category_in.parent_id:
-        parent = session.get(Category, category_in.parent_id)
-        if not parent or parent.owner_id != current_user.id:
-            raise HTTPException(status_code=400, detail="Invalid parent category")
+    _validate_category_parent(
+        session,
+        owner_id=current_user.id,
+        category_id=None,
+        parent_id=category_in.parent_id,
+    )
     statement = select(Category).where(
         Category.owner_id == current_user.id, Category.name == category_in.name
     )
     if session.exec(statement).first():
         raise HTTPException(status_code=409, detail="Category name already exists")
-    category = Category.model_validate(category_in, update={"owner_id": current_user.id})
-    session.add(category)
-    session.commit()
+    category = Category.model_validate(
+        category_in, update={"owner_id": current_user.id}
+    )
+    _commit_category(session, category)
     session.refresh(category)
     return category
 
@@ -86,13 +125,13 @@ def update_category(
     if not category or category.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Category not found")
     update_data = category_in.model_dump(exclude_unset=True)
-    parent_id = update_data.get("parent_id")
-    if parent_id == category.id:
-        raise HTTPException(status_code=400, detail="Category cannot be its own parent")
-    if parent_id:
-        parent = session.get(Category, parent_id)
-        if not parent or parent.owner_id != current_user.id:
-            raise HTTPException(status_code=400, detail="Invalid parent category")
+    parent_id = update_data.get("parent_id", category.parent_id)
+    _validate_category_parent(
+        session,
+        owner_id=current_user.id,
+        category_id=category.id,
+        parent_id=parent_id,
+    )
     if "color" in update_data and update_data["color"] is not None:
         _validate_color(update_data["color"])
     if "name" in update_data:
@@ -104,8 +143,7 @@ def update_category(
         if session.exec(statement).first():
             raise HTTPException(status_code=409, detail="Category name already exists")
     category.sqlmodel_update(update_data)
-    session.add(category)
-    session.commit()
+    _commit_category(session, category)
     session.refresh(category)
     return category
 
@@ -117,7 +155,9 @@ def delete_category(
     category = session.get(Category, category_id)
     if not category or category.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Category not found")
-    child = session.exec(select(Category).where(Category.parent_id == category.id)).first()
+    child = session.exec(
+        select(Category).where(Category.parent_id == category.id)
+    ).first()
     if child:
         raise HTTPException(status_code=400, detail="Category has child categories")
     linked_transaction = session.exec(

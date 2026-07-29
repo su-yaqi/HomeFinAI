@@ -3,7 +3,13 @@ import type { ApiError } from "./client"
 
 function extractErrorMessage(err: ApiError): string {
   if (err instanceof AxiosError) {
-    return err.message
+    const detail = (err.response?.data as { detail?: unknown } | undefined)
+      ?.detail
+    if (Array.isArray(detail) && detail.length > 0) {
+      const firstDetail = detail[0] as { msg?: string }
+      return firstDetail.msg || err.message
+    }
+    return typeof detail === "string" ? detail : err.message
   }
 
   const errDetail = (err.body as any)?.detail

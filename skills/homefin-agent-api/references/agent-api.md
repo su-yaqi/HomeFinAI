@@ -45,15 +45,25 @@ or:
 X-API-Token: <API_TOKEN>
 ```
 
-Optional HMAC headers:
+Tokens created without an HMAC secret use only the API token headers above. Tokens
+created with an HMAC secret must include all of these headers on every request:
 
 ```http
 X-API-Secret: <SECRET>
-X-Timestamp: <TIMESTAMP>
+X-Timestamp: <UNIX_TIMESTAMP_SECONDS>
+X-Nonce: <FRESH_RANDOM_VALUE>
 X-Signature: <SIGNATURE>
 ```
 
-If any HMAC header is present, the full HMAC set must be valid.
+The timestamp must be within five minutes of server time. The signature payload is:
+
+```text
+<timestamp>:<nonce>:<HTTP method>:<request path>:<raw request body>
+```
+
+Sign the payload with HMAC-SHA256 using the API secret. Missing, partial, stale,
+replayed, or invalid HMAC headers are rejected. Keep clocks synchronized and generate
+a fresh cryptographically random nonce of 16 to 128 characters for every request.
 
 ## Transaction Endpoints
 
@@ -327,6 +337,7 @@ Delete message:
 - `401 Invalid API token`: token not found or disabled
 - `401 Expired API token`: token expired
 - `401 Invalid HMAC signature`: partial or invalid HMAC headers
+- `401 Replayed HMAC request`: the nonce was already accepted for this token
 - `404 Transaction not found`: wrong transaction id or wrong owner scope
 - `404 Budget not found`: wrong budget id or wrong owner scope
 - `404 Category not found`: wrong category id or wrong owner scope

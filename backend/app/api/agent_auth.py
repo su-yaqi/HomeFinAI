@@ -1,12 +1,16 @@
 import hashlib
 import hmac
-from datetime import datetime, timezone
+import time
+from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, Request
-from sqlmodel import select
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import col, delete, select
 
 from app.api.deps import SessionDep
-from app.models import ApiToken
+from app.models import ApiToken, ApiTokenNonce
+
+HMAC_MAX_CLOCK_SKEW_SECONDS = 300
 
 
 def hash_value(value: str) -> str:
@@ -21,6 +25,7 @@ def authenticate_agent(
     x_api_token: str | None,
     x_api_secret: str | None,
     x_timestamp: str | None,
+    x_nonce: str | None,
     x_signature: str | None,
 ) -> ApiToken:
     token_value = x_api_token
@@ -37,21 +42,53 @@ def authenticate_agent(
     if token.expires_at and token.expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=401, detail="Expired API token")
 
-    if any([x_api_secret, x_timestamp, x_signature]):
-        if not all([x_api_secret, x_timestamp, x_signature, token.secret_hash]):
+    hmac_headers = [x_api_secret, x_timestamp, x_nonce, x_signature]
+    if token.secret_hash:
+        if not all(hmac_headers):
             raise HTTPException(status_code=401, detail="Invalid HMAC signature")
-        if hash_value(x_api_secret) != token.secret_hash:
+    elif any(hmac_headers):
+        raise HTTPException(status_code=401, detail="Invalid HMAC signature")
+
+    if token.secret_hash:
+        assert x_api_secret is not None
+        assert x_timestamp is not None
+        assert x_nonce is not None
+        assert x_signature is not None
+        try:
+            timestamp = int(x_timestamp)
+        except ValueError:
+            raise HTTPException(status_code=401, detail="Invalid HMAC timestamp")
+        if abs(time.time() - timestamp) > HMAC_MAX_CLOCK_SKEW_SECONDS:
+            raise HTTPException(status_code=401, detail="Expired HMAC timestamp")
+        if not 16 <= len(x_nonce) <= 128:
+            raise HTTPException(status_code=401, detail="Invalid HMAC nonce")
+        if not hmac.compare_digest(hash_value(x_api_secret), token.secret_hash):
             raise HTTPException(status_code=401, detail="Invalid HMAC signature")
         expected = hmac.new(
             x_api_secret.encode(),
-            msg=f"{x_timestamp}:{request.method}:{request.url.path}:{body_text}".encode(),
+            msg=(
+                f"{x_timestamp}:{x_nonce}:{request.method}:"
+                f"{request.url.path}:{body_text}"
+            ).encode(),
             digestmod=hashlib.sha256,
         ).hexdigest()
         if not hmac.compare_digest(expected, x_signature):
             raise HTTPException(status_code=401, detail="Invalid HMAC signature")
 
+        cutoff = datetime.now(timezone.utc) - timedelta(
+            seconds=HMAC_MAX_CLOCK_SKEW_SECONDS * 2
+        )
+        session.exec(
+            delete(ApiTokenNonce).where(col(ApiTokenNonce.created_at) < cutoff)
+        )
+        session.add(ApiTokenNonce(token_id=token.id, nonce=x_nonce))
+
     token.last_used_at = datetime.now(timezone.utc)
     session.add(token)
-    session.commit()
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=401, detail="Replayed HMAC request")
     session.refresh(token)
     return token

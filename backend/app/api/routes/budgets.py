@@ -1,9 +1,8 @@
 import uuid
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from sqlmodel import case, col, func, select
+from sqlmodel import col, func, select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.models import (
@@ -43,7 +42,9 @@ def read_budgets(
         page=page, page_size=page_size, skip=skip, limit=limit
     )
     count = session.exec(
-        select(func.count()).select_from(Budget).where(Budget.owner_id == current_user.id)
+        select(func.count())
+        .select_from(Budget)
+        .where(Budget.owner_id == current_user.id)
     ).one()
     budgets = session.exec(
         select(Budget)
@@ -56,16 +57,24 @@ def read_budgets(
     usage_map: dict[uuid.UUID, int] = {}
     if budget_ids:
         rows = session.exec(
-            select(Transaction.budget_id, func.coalesce(func.sum(Transaction.amount_cents), 0))
+            select(
+                col(Transaction.budget_id),
+                func.coalesce(func.sum(Transaction.amount_cents), 0),
+            )
             .where(
-                Transaction.budget_id.in_(budget_ids),
+                col(Transaction.budget_id).in_(budget_ids),
                 Transaction.transaction_type == int(TransactionType.EXPENSE),
             )
-            .group_by(Transaction.budget_id)
+            .group_by(col(Transaction.budget_id))
         ).all()
-        usage_map = {budget_id: used for budget_id, used in rows if budget_id is not None}
+        usage_map = {
+            budget_id: used for budget_id, used in rows if budget_id is not None
+        }
     return BudgetsPublic(
-        data=[_budget_public_from_row(budget, usage_map.get(budget.id)) for budget in budgets],
+        data=[
+            _budget_public_from_row(budget, usage_map.get(budget.id))
+            for budget in budgets
+        ],
         count=count,
     )
 
@@ -124,7 +133,9 @@ def delete_budget(
     budget = session.get(Budget, budget_id)
     if not budget or budget.owner_id != current_user.id:
         raise HTTPException(status_code=404, detail="Budget not found")
-    linked = session.exec(select(Transaction).where(Transaction.budget_id == budget.id)).first()
+    linked = session.exec(
+        select(Transaction).where(Transaction.budget_id == budget.id)
+    ).first()
     if linked:
         raise HTTPException(status_code=400, detail="Budget has related transactions")
     session.delete(budget)

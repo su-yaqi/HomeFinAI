@@ -34,13 +34,18 @@ def read_api_tokens(
     page_size: int | None = None,
 ) -> Any:
     if not current_user.is_superuser:
-        raise HTTPException(status_code=403, detail="The user doesn't have enough privileges")
+        raise HTTPException(
+            status_code=403, detail="The user doesn't have enough privileges"
+        )
     offset, max_results = resolve_pagination(
         page=page, page_size=page_size, skip=skip, limit=limit
     )
     count = session.exec(select(func.count()).select_from(ApiToken)).one()
     tokens = session.exec(
-        select(ApiToken).order_by(col(ApiToken.created_at).desc()).offset(offset).limit(max_results)
+        select(ApiToken)
+        .order_by(col(ApiToken.created_at).desc())
+        .offset(offset)
+        .limit(max_results)
     ).all()
     return ApiTokensPublic(
         data=[ApiTokenPublic.model_validate(token) for token in tokens],
@@ -69,7 +74,9 @@ def create_api_token(
     )
     session.add(token)
     session.commit()
-    return ApiTokenSecretPublic(token=plain_token, secret=plain_secret, token_prefix=token_prefix)
+    return ApiTokenSecretPublic(
+        token=plain_token, secret=plain_secret, token_prefix=token_prefix
+    )
 
 
 @router.post(

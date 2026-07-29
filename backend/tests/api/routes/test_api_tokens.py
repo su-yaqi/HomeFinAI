@@ -91,9 +91,7 @@ def test_create_api_token_uses_alphanumeric_value_and_can_be_deleted(
         headers=superuser_token_headers,
     )
     assert delete_response.json() == {"message": "API token deleted successfully"}
-    assert all(
-        item["id"] != token_id for item in deleted_list_response.json()["data"]
-    )
+    assert all(item["id"] != token_id for item in deleted_list_response.json()["data"])
 
     agent_response = client.get(
         f"{settings.API_V1_STR}/agent/categories/",

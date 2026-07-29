@@ -3,7 +3,8 @@
 ## 核心流程
 1. 外部 Agent 携带 API Token 调用 `/agent/handler-options`、`/agent/transactions`、`/agent/budgets` 或 `/agent/categories`。
 2. 后端根据 Bearer Token 或 `X-API-Token` 查找 `apitoken`。
-3. 若请求携带 HMAC 相关头，则进一步校验签名。
+3. 若 Token 配置了 HMAC Secret，则必须校验完整签名、5 分钟时间窗口和数据库唯一 Nonce；
+   重放请求及未配置 Secret 的 Token 携带多余 HMAC 头都会被拒绝。
 4. 鉴权成功后更新 `last_used_at`。
 5. Agent 如需代他人录入，可先读取 `/agent/handler-options`，选择一个激活中的经手人用户 ID。
 6. 创建或更新交易时，若未显式指定经手人，或显式传入 `null`，后端都会回退到 Token 所属用户。

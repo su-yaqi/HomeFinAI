@@ -1,3 +1,4 @@
+import uuid
 from collections.abc import Generator
 from typing import Annotated
 
@@ -7,7 +8,11 @@ from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.db import engine
-from app.core.security import decode_token
+from app.core.security import (
+    ACCESS_TOKEN_TYPE,
+    SESSION_TOKEN_TYPE,
+    decode_token,
+)
 from app.models import TokenPayload, User, UserPublic
 
 
@@ -21,10 +26,12 @@ SessionDep = Annotated[Session, Depends(get_db)]
 
 def get_current_user(request: Request, session: SessionDep) -> User:
     token = request.cookies.get(settings.SESSION_COOKIE_NAME)
+    expected_token_type = SESSION_TOKEN_TYPE
     if not token:
         authorization = request.headers.get("Authorization")
         if authorization and authorization.startswith("Bearer "):
             token = authorization.removeprefix("Bearer ").strip()
+            expected_token_type = ACCESS_TOKEN_TYPE
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -33,16 +40,24 @@ def get_current_user(request: Request, session: SessionDep) -> User:
     try:
         payload = decode_token(token)
         token_data = TokenPayload(**payload)
+        if token_data.typ != expected_token_type or not token_data.sub:
+            raise ValueError("Invalid token type")
+        user_id = uuid.UUID(token_data.sub)
     except (InvalidTokenError, ValueError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
         )
-    user = session.get(User, token_data.sub)
+    user = session.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+    if token_data.ver != user.auth_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has been revoked",
+        )
     return user
 
 

@@ -49,6 +49,8 @@
 - **Method**：POST
 - **Path**：`/api/v1/login/test-token`
 - **描述**：返回当前 Bearer Token 或 Session 对应的用户
+- Bearer、Cookie Session 与密码重置 Token 都携带独立 `typ`，不能跨用途复用。
+- 登录态 Token 携带用户 `auth_version`；密码修改或管理员重置密码后，旧 Token 返回 401。
 
 ### 密码找回
 - **Method**：POST
@@ -59,6 +61,7 @@
 - **Method**：POST
 - **Path**：`/api/v1/reset-password/`
 - **描述**：使用找回邮件中的 token 设置新密码
+- 密码重置 Token 绑定签发时的 `auth_version`，成功重置后不能再次使用。
 
 ### 兼容注册
 - **Method**：POST

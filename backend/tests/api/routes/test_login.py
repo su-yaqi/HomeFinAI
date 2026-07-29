@@ -1,5 +1,5 @@
-from unittest.mock import patch
 import time
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from pwdlib.hashers.bcrypt import BcryptHasher
@@ -10,7 +10,6 @@ from app.core.security import _hotp, get_password_hash, verify_password
 from app.crud import create_user
 from app.models import User, UserCreate
 from app.utils import generate_password_reset_token
-from tests.utils.user import user_authentication_headers
 from tests.utils.utils import (
     login_name_from_email,
     random_email,
@@ -49,6 +48,19 @@ def test_use_access_token(
     result = r.json()
     assert r.status_code == 200
     assert "email" in result
+
+
+def test_password_reset_token_cannot_be_used_as_access_token(
+    client: TestClient,
+) -> None:
+    reset_token = generate_password_reset_token(email=settings.FIRST_SUPERUSER)
+    response = client.get(
+        f"{settings.API_V1_STR}/users/me",
+        headers={"Authorization": f"Bearer {reset_token}"},
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Could not validate credentials"}
 
 
 def test_recovery_password(
@@ -111,6 +123,13 @@ def test_reset_password(client: TestClient, db: Session) -> None:
     db.refresh(user)
     verified, _ = verify_password(new_password, user.hashed_password)
     assert verified
+
+    reused = client.post(
+        f"{settings.API_V1_STR}/reset-password/",
+        json=data,
+    )
+    assert reused.status_code == 400
+    assert reused.json() == {"detail": "Invalid token"}
 
 
 def test_reset_password_invalid_token(
@@ -206,7 +225,9 @@ def test_login_with_argon2_password_keeps_hash(client: TestClient, db: Session) 
     assert user.hashed_password.startswith("$argon2")
 
 
-def test_login_requires_mfa_for_user_with_secret(client: TestClient, db: Session) -> None:
+def test_login_requires_mfa_for_user_with_secret(
+    client: TestClient, db: Session
+) -> None:
     email = random_email()
     password = random_lower_string()
     secret = "JBSWY3DPEHPK3PXP"

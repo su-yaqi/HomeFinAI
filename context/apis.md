@@ -10,6 +10,7 @@
 - 主认证方式：Bearer Token，Header 为 `Authorization: Bearer <token>`
 - 主登录入口：`POST /api/v1/login/access-token`
 - 兼容 Session 入口：`POST /api/v1/login`、`POST /api/v1/logout`
+- Bearer、Cookie Session 与密码重置 Token 使用独立类型声明，并绑定用户认证版本。
 - OpenAPI 文档：`/api/v1/openapi.json`
 
 ### 响应约定
@@ -33,6 +34,7 @@
 ### 权限约定
 - 未登录：返回 401 或 403，前端统一清理 token 并跳转 `/login`
 - 登录 token 指向已删除用户时：后端当前返回 `404 User not found`，前端同样视为登录失效并清理 token 后跳转 `/login`
+- 登录 token 的类型不匹配或认证版本过期时：后端返回 401，前端清理 token 后跳转 `/login`
 - 管理员接口：通过 `is_superuser` 控制
 - 普通用户财务资源：仅可访问自己的分类、预算、交易和 Dashboard 聚合
 - Agent 接口：通过 API Token 认证，不走普通用户 Bearer Token

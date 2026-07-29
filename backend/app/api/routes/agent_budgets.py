@@ -6,7 +6,16 @@ from sqlmodel import col, func, select
 
 from app.api.agent_auth import authenticate_agent
 from app.api.deps import SessionDep
-from app.models import Budget, BudgetCreate, BudgetPublic, BudgetsPublic, BudgetUpdate, Message, Transaction, TransactionType
+from app.models import (
+    Budget,
+    BudgetCreate,
+    BudgetPublic,
+    BudgetsPublic,
+    BudgetUpdate,
+    Message,
+    Transaction,
+    TransactionType,
+)
 from app.utils import amount_to_cents, cents_to_amount, resolve_pagination
 
 router = APIRouter(prefix="/agent/budgets", tags=["agent-budgets"])
@@ -34,17 +43,28 @@ async def read_agent_budgets(
     x_api_token: str | None = Header(default=None),
     x_api_secret: str | None = Header(default=None),
     x_timestamp: str | None = Header(default=None),
+    x_nonce: str | None = Header(default=None),
     x_signature: str | None = Header(default=None),
 ) -> Any:
     body_text = (await request.body()).decode()
     token = authenticate_agent(
-        session, request, body_text, authorization, x_api_token, x_api_secret, x_timestamp, x_signature
+        session,
+        request,
+        body_text,
+        authorization,
+        x_api_token,
+        x_api_secret,
+        x_timestamp,
+        x_nonce,
+        x_signature,
     )
     offset, max_results = resolve_pagination(
         page=page, page_size=page_size, skip=skip, limit=limit
     )
     count = session.exec(
-        select(func.count()).select_from(Budget).where(Budget.owner_id == token.created_by)
+        select(func.count())
+        .select_from(Budget)
+        .where(Budget.owner_id == token.created_by)
     ).one()
     budgets = session.exec(
         select(Budget)
@@ -57,16 +77,24 @@ async def read_agent_budgets(
     usage_map: dict[uuid.UUID, int] = {}
     if budget_ids:
         rows = session.exec(
-            select(Transaction.budget_id, func.coalesce(func.sum(Transaction.amount_cents), 0))
+            select(
+                col(Transaction.budget_id),
+                func.coalesce(func.sum(Transaction.amount_cents), 0),
+            )
             .where(
-                Transaction.budget_id.in_(budget_ids),
+                col(Transaction.budget_id).in_(budget_ids),
                 Transaction.transaction_type == int(TransactionType.EXPENSE),
             )
-            .group_by(Transaction.budget_id)
+            .group_by(col(Transaction.budget_id))
         ).all()
-        usage_map = {budget_id: used for budget_id, used in rows if budget_id is not None}
+        usage_map = {
+            budget_id: used for budget_id, used in rows if budget_id is not None
+        }
     return BudgetsPublic(
-        data=[_budget_public_from_row(budget, usage_map.get(budget.id)) for budget in budgets],
+        data=[
+            _budget_public_from_row(budget, usage_map.get(budget.id))
+            for budget in budgets
+        ],
         count=count,
     )
 
@@ -80,11 +108,20 @@ async def create_agent_budget(
     x_api_token: str | None = Header(default=None),
     x_api_secret: str | None = Header(default=None),
     x_timestamp: str | None = Header(default=None),
+    x_nonce: str | None = Header(default=None),
     x_signature: str | None = Header(default=None),
 ) -> Any:
     body_text = (await request.body()).decode()
     token = authenticate_agent(
-        session, request, body_text, authorization, x_api_token, x_api_secret, x_timestamp, x_signature
+        session,
+        request,
+        body_text,
+        authorization,
+        x_api_token,
+        x_api_secret,
+        x_timestamp,
+        x_nonce,
+        x_signature,
     )
     budget = Budget.model_validate(
         budget_in,
@@ -110,11 +147,20 @@ async def update_agent_budget(
     x_api_token: str | None = Header(default=None),
     x_api_secret: str | None = Header(default=None),
     x_timestamp: str | None = Header(default=None),
+    x_nonce: str | None = Header(default=None),
     x_signature: str | None = Header(default=None),
 ) -> Any:
     body_text = (await request.body()).decode()
     token = authenticate_agent(
-        session, request, body_text, authorization, x_api_token, x_api_secret, x_timestamp, x_signature
+        session,
+        request,
+        body_text,
+        authorization,
+        x_api_token,
+        x_api_secret,
+        x_timestamp,
+        x_nonce,
+        x_signature,
     )
     budget = session.get(Budget, budget_id)
     if not budget or budget.owner_id != token.created_by:
@@ -146,16 +192,27 @@ async def delete_agent_budget(
     x_api_token: str | None = Header(default=None),
     x_api_secret: str | None = Header(default=None),
     x_timestamp: str | None = Header(default=None),
+    x_nonce: str | None = Header(default=None),
     x_signature: str | None = Header(default=None),
 ) -> Any:
     body_text = (await request.body()).decode()
     token = authenticate_agent(
-        session, request, body_text, authorization, x_api_token, x_api_secret, x_timestamp, x_signature
+        session,
+        request,
+        body_text,
+        authorization,
+        x_api_token,
+        x_api_secret,
+        x_timestamp,
+        x_nonce,
+        x_signature,
     )
     budget = session.get(Budget, budget_id)
     if not budget or budget.owner_id != token.created_by:
         raise HTTPException(status_code=404, detail="Budget not found")
-    linked = session.exec(select(Transaction).where(Transaction.budget_id == budget.id)).first()
+    linked = session.exec(
+        select(Transaction).where(Transaction.budget_id == budget.id)
+    ).first()
     if linked:
         raise HTTPException(status_code=400, detail="Budget has related transactions")
     session.delete(budget)

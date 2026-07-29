@@ -24,7 +24,9 @@ from app.utils import amount_to_cents, cents_to_amount, resolve_pagination
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
 
-def _handler_display_name(handler_user: User | None, handler_name: str | None) -> str | None:
+def _handler_display_name(
+    handler_user: User | None, handler_name: str | None
+) -> str | None:
     if handler_user:
         return handler_user.full_name or handler_user.login_name
     return handler_name or None
@@ -48,7 +50,10 @@ def _transaction_public(
 
 
 def _validate_transaction_links(
-    session: SessionDep, current_user: CurrentUser, category_id: uuid.UUID, budget_id: uuid.UUID | None
+    session: SessionDep,
+    current_user: CurrentUser,
+    category_id: uuid.UUID,
+    budget_id: uuid.UUID | None,
 ) -> None:
     category = session.get(Category, category_id)
     if not category or category.owner_id != current_user.id:
@@ -107,7 +112,9 @@ def read_transactions(
     transactions = session.exec(
         select(Transaction)
         .where(*conditions)
-        .order_by(col(Transaction.transaction_date).desc(), col(Transaction.created_at).desc())
+        .order_by(
+            col(Transaction.transaction_date).desc(), col(Transaction.created_at).desc()
+        )
         .offset(offset)
         .limit(max_results)
     ).all()
@@ -120,12 +127,17 @@ def read_transactions(
     if handler_user_ids:
         handler_users = {
             user.id: user
-            for user in session.exec(select(User).where(User.id.in_(handler_user_ids))).all()
+            for user in session.exec(
+                select(User).where(col(User.id).in_(handler_user_ids))
+            ).all()
         }
     return TransactionsPublic(
         data=[
             _transaction_public(
-                transaction, handler_users.get(transaction.handler_user_id)
+                transaction,
+                handler_users.get(transaction.handler_user_id)
+                if transaction.handler_user_id is not None
+                else None,
             )
             for transaction in transactions
         ],
@@ -192,10 +204,14 @@ def update_transaction(
     _validate_transaction_links(session, current_user, category_id, budget_id)
     if "amount" in update_data and update_data["amount"] is not None:
         update_data["amount_cents"] = amount_to_cents(update_data.pop("amount"))
-    if "transaction_type" in update_data and update_data["transaction_type"] is not None:
+    if (
+        "transaction_type" in update_data
+        and update_data["transaction_type"] is not None
+    ):
         update_data["transaction_type"] = int(update_data["transaction_type"])
     if "entry_status" in update_data and update_data["entry_status"] is not None:
         update_data["entry_status"] = int(update_data["entry_status"])
+    handler_user: User | None
     if "handler_user_id" in update_data:
         handler_user = _resolve_handler_user(
             session, update_data["handler_user_id"], current_user
@@ -235,7 +251,7 @@ def batch_enter_transactions(
     payload: TransactionBatchEnter,
 ) -> Any:
     statement = select(Transaction).where(
-        Transaction.owner_id == current_user.id, Transaction.id.in_(payload.ids)
+        Transaction.owner_id == current_user.id, col(Transaction.id).in_(payload.ids)
     )
     transactions = session.exec(statement).all()
     updated_ids: list[uuid.UUID] = []

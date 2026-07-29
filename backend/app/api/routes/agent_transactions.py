@@ -2,7 +2,7 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Request
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.api.agent_auth import authenticate_agent
 from app.api.deps import SessionDep
@@ -11,8 +11,8 @@ from app.models import (
     Transaction,
     TransactionCreate,
     TransactionPublic,
-    TransactionUpdate,
     TransactionsPublic,
+    TransactionUpdate,
     User,
 )
 from app.utils import amount_to_cents, cents_to_amount
@@ -47,11 +47,24 @@ async def read_agent_transactions(
     x_api_token: str | None = Header(default=None),
     x_api_secret: str | None = Header(default=None),
     x_timestamp: str | None = Header(default=None),
+    x_nonce: str | None = Header(default=None),
     x_signature: str | None = Header(default=None),
 ) -> Any:
     body_text = (await request.body()).decode()
-    token = authenticate_agent(session, request, body_text, authorization, x_api_token, x_api_secret, x_timestamp, x_signature)
-    transactions = session.exec(select(Transaction).where(Transaction.owner_id == token.created_by)).all()
+    token = authenticate_agent(
+        session,
+        request,
+        body_text,
+        authorization,
+        x_api_token,
+        x_api_secret,
+        x_timestamp,
+        x_nonce,
+        x_signature,
+    )
+    transactions = session.exec(
+        select(Transaction).where(Transaction.owner_id == token.created_by)
+    ).all()
     handler_user_ids = {
         transaction.handler_user_id
         for transaction in transactions
@@ -61,12 +74,17 @@ async def read_agent_transactions(
     if handler_user_ids:
         handler_users = {
             user.id: user
-            for user in session.exec(select(User).where(User.id.in_(handler_user_ids))).all()
+            for user in session.exec(
+                select(User).where(col(User.id).in_(handler_user_ids))
+            ).all()
         }
     return TransactionsPublic(
         data=[
             _transaction_public(
-                transaction, handler_users.get(transaction.handler_user_id)
+                transaction,
+                handler_users.get(transaction.handler_user_id)
+                if transaction.handler_user_id is not None
+                else None,
             )
             for transaction in transactions
         ],
@@ -83,10 +101,21 @@ async def create_agent_transaction(
     x_api_token: str | None = Header(default=None),
     x_api_secret: str | None = Header(default=None),
     x_timestamp: str | None = Header(default=None),
+    x_nonce: str | None = Header(default=None),
     x_signature: str | None = Header(default=None),
 ) -> Any:
     body_text = (await request.body()).decode()
-    token = authenticate_agent(session, request, body_text, authorization, x_api_token, x_api_secret, x_timestamp, x_signature)
+    token = authenticate_agent(
+        session,
+        request,
+        body_text,
+        authorization,
+        x_api_token,
+        x_api_secret,
+        x_timestamp,
+        x_nonce,
+        x_signature,
+    )
     requested_handler_id = transaction_in.handler_user_id or token.created_by
     handler_user = session.get(User, requested_handler_id)
     if not handler_user or not handler_user.is_active:
@@ -117,10 +146,21 @@ async def read_agent_transaction(
     x_api_token: str | None = Header(default=None),
     x_api_secret: str | None = Header(default=None),
     x_timestamp: str | None = Header(default=None),
+    x_nonce: str | None = Header(default=None),
     x_signature: str | None = Header(default=None),
 ) -> Any:
     body_text = (await request.body()).decode()
-    token = authenticate_agent(session, request, body_text, authorization, x_api_token, x_api_secret, x_timestamp, x_signature)
+    token = authenticate_agent(
+        session,
+        request,
+        body_text,
+        authorization,
+        x_api_token,
+        x_api_secret,
+        x_timestamp,
+        x_nonce,
+        x_signature,
+    )
     transaction = session.get(Transaction, transaction_id)
     if not transaction or transaction.owner_id != token.created_by:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -142,17 +182,31 @@ async def update_agent_transaction(
     x_api_token: str | None = Header(default=None),
     x_api_secret: str | None = Header(default=None),
     x_timestamp: str | None = Header(default=None),
+    x_nonce: str | None = Header(default=None),
     x_signature: str | None = Header(default=None),
 ) -> Any:
     body_text = (await request.body()).decode()
-    token = authenticate_agent(session, request, body_text, authorization, x_api_token, x_api_secret, x_timestamp, x_signature)
+    token = authenticate_agent(
+        session,
+        request,
+        body_text,
+        authorization,
+        x_api_token,
+        x_api_secret,
+        x_timestamp,
+        x_nonce,
+        x_signature,
+    )
     transaction = session.get(Transaction, transaction_id)
     if not transaction or transaction.owner_id != token.created_by:
         raise HTTPException(status_code=404, detail="Transaction not found")
     update_data = transaction_in.model_dump(exclude_unset=True)
     if "amount" in update_data and update_data["amount"] is not None:
         update_data["amount_cents"] = amount_to_cents(update_data.pop("amount"))
-    if "transaction_type" in update_data and update_data["transaction_type"] is not None:
+    if (
+        "transaction_type" in update_data
+        and update_data["transaction_type"] is not None
+    ):
         update_data["transaction_type"] = int(update_data["transaction_type"])
     if "entry_status" in update_data and update_data["entry_status"] is not None:
         update_data["entry_status"] = int(update_data["entry_status"])
@@ -185,10 +239,21 @@ async def delete_agent_transaction(
     x_api_token: str | None = Header(default=None),
     x_api_secret: str | None = Header(default=None),
     x_timestamp: str | None = Header(default=None),
+    x_nonce: str | None = Header(default=None),
     x_signature: str | None = Header(default=None),
 ) -> Any:
     body_text = (await request.body()).decode()
-    token = authenticate_agent(session, request, body_text, authorization, x_api_token, x_api_secret, x_timestamp, x_signature)
+    token = authenticate_agent(
+        session,
+        request,
+        body_text,
+        authorization,
+        x_api_token,
+        x_api_secret,
+        x_timestamp,
+        x_nonce,
+        x_signature,
+    )
     transaction = session.get(Transaction, transaction_id)
     if not transaction or transaction.owner_id != token.created_by:
         raise HTTPException(status_code=404, detail="Transaction not found")

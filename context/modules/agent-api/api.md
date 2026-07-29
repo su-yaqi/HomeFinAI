@@ -21,7 +21,9 @@
 ## 认证方式
 - `Authorization: Bearer <plain_token>`
 - 或 `X-API-Token: <plain_token>`
-- 若启用 HMAC，可附带 `X-API-Secret`、`X-Timestamp`、`X-Signature`
+- Token 创建时若生成 HMAC Secret，后续每次请求都必须携带
+  `X-API-Secret`、Unix 秒级 `X-Timestamp`、随机 `X-Nonce`、`X-Signature`；
+  时间戳仅允许与服务端相差 5 分钟，Nonce 不得重复使用
 
 ## 业务规则
 - Token 无效、禁用或过期时返回 401。

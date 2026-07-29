@@ -6,6 +6,11 @@ from sqlmodel import col, func, select
 
 from app.api.agent_auth import authenticate_agent
 from app.api.deps import SessionDep
+from app.api.routes.categories import (
+    _commit_category,
+    _validate_category_parent,
+    _validate_color,
+)
 from app.models import (
     CategoriesPublic,
     Category,
@@ -15,7 +20,6 @@ from app.models import (
     Message,
     Transaction,
 )
-from app.api.routes.categories import _validate_color
 from app.utils import resolve_pagination
 
 router = APIRouter(prefix="/agent/categories", tags=["agent-categories"])
@@ -33,17 +37,28 @@ async def read_agent_categories(
     x_api_token: str | None = Header(default=None),
     x_api_secret: str | None = Header(default=None),
     x_timestamp: str | None = Header(default=None),
+    x_nonce: str | None = Header(default=None),
     x_signature: str | None = Header(default=None),
 ) -> Any:
     body_text = (await request.body()).decode()
     token = authenticate_agent(
-        session, request, body_text, authorization, x_api_token, x_api_secret, x_timestamp, x_signature
+        session,
+        request,
+        body_text,
+        authorization,
+        x_api_token,
+        x_api_secret,
+        x_timestamp,
+        x_nonce,
+        x_signature,
     )
     offset, max_results = resolve_pagination(
         page=page, page_size=page_size, skip=skip, limit=limit
     )
     count = session.exec(
-        select(func.count()).select_from(Category).where(Category.owner_id == token.created_by)
+        select(func.count())
+        .select_from(Category)
+        .where(Category.owner_id == token.created_by)
     ).one()
     categories = session.exec(
         select(Category)
@@ -67,25 +82,37 @@ async def create_agent_category(
     x_api_token: str | None = Header(default=None),
     x_api_secret: str | None = Header(default=None),
     x_timestamp: str | None = Header(default=None),
+    x_nonce: str | None = Header(default=None),
     x_signature: str | None = Header(default=None),
 ) -> Any:
     body_text = (await request.body()).decode()
     token = authenticate_agent(
-        session, request, body_text, authorization, x_api_token, x_api_secret, x_timestamp, x_signature
+        session,
+        request,
+        body_text,
+        authorization,
+        x_api_token,
+        x_api_secret,
+        x_timestamp,
+        x_nonce,
+        x_signature,
     )
     _validate_color(category_in.color)
-    if category_in.parent_id:
-        parent = session.get(Category, category_in.parent_id)
-        if not parent or parent.owner_id != token.created_by:
-            raise HTTPException(status_code=400, detail="Invalid parent category")
+    _validate_category_parent(
+        session,
+        owner_id=token.created_by,
+        category_id=None,
+        parent_id=category_in.parent_id,
+    )
     statement = select(Category).where(
         Category.owner_id == token.created_by, Category.name == category_in.name
     )
     if session.exec(statement).first():
         raise HTTPException(status_code=409, detail="Category name already exists")
-    category = Category.model_validate(category_in, update={"owner_id": token.created_by})
-    session.add(category)
-    session.commit()
+    category = Category.model_validate(
+        category_in, update={"owner_id": token.created_by}
+    )
+    _commit_category(session, category)
     session.refresh(category)
     return category
 
@@ -100,23 +127,32 @@ async def update_agent_category(
     x_api_token: str | None = Header(default=None),
     x_api_secret: str | None = Header(default=None),
     x_timestamp: str | None = Header(default=None),
+    x_nonce: str | None = Header(default=None),
     x_signature: str | None = Header(default=None),
 ) -> Any:
     body_text = (await request.body()).decode()
     token = authenticate_agent(
-        session, request, body_text, authorization, x_api_token, x_api_secret, x_timestamp, x_signature
+        session,
+        request,
+        body_text,
+        authorization,
+        x_api_token,
+        x_api_secret,
+        x_timestamp,
+        x_nonce,
+        x_signature,
     )
     category = session.get(Category, category_id)
     if not category or category.owner_id != token.created_by:
         raise HTTPException(status_code=404, detail="Category not found")
     update_data = category_in.model_dump(exclude_unset=True)
-    parent_id = update_data.get("parent_id")
-    if parent_id == category.id:
-        raise HTTPException(status_code=400, detail="Category cannot be its own parent")
-    if parent_id:
-        parent = session.get(Category, parent_id)
-        if not parent or parent.owner_id != token.created_by:
-            raise HTTPException(status_code=400, detail="Invalid parent category")
+    parent_id = update_data.get("parent_id", category.parent_id)
+    _validate_category_parent(
+        session,
+        owner_id=token.created_by,
+        category_id=category.id,
+        parent_id=parent_id,
+    )
     if "color" in update_data and update_data["color"] is not None:
         _validate_color(update_data["color"])
     if "name" in update_data:
@@ -128,8 +164,7 @@ async def update_agent_category(
         if session.exec(statement).first():
             raise HTTPException(status_code=409, detail="Category name already exists")
     category.sqlmodel_update(update_data)
-    session.add(category)
-    session.commit()
+    _commit_category(session, category)
     session.refresh(category)
     return category
 
@@ -143,16 +178,27 @@ async def delete_agent_category(
     x_api_token: str | None = Header(default=None),
     x_api_secret: str | None = Header(default=None),
     x_timestamp: str | None = Header(default=None),
+    x_nonce: str | None = Header(default=None),
     x_signature: str | None = Header(default=None),
 ) -> Any:
     body_text = (await request.body()).decode()
     token = authenticate_agent(
-        session, request, body_text, authorization, x_api_token, x_api_secret, x_timestamp, x_signature
+        session,
+        request,
+        body_text,
+        authorization,
+        x_api_token,
+        x_api_secret,
+        x_timestamp,
+        x_nonce,
+        x_signature,
     )
     category = session.get(Category, category_id)
     if not category or category.owner_id != token.created_by:
         raise HTTPException(status_code=404, detail="Category not found")
-    child = session.exec(select(Category).where(Category.parent_id == category.id)).first()
+    child = session.exec(
+        select(Category).where(Category.parent_id == category.id)
+    ).first()
     if child:
         raise HTTPException(status_code=400, detail="Category has child categories")
     linked_transaction = session.exec(

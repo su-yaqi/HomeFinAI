@@ -1,3 +1,4 @@
+import uuid
 from typing import Any
 
 from fastapi import APIRouter, Header, Request
@@ -18,6 +19,7 @@ async def read_agent_handler_options(
     x_api_token: str | None = Header(default=None),
     x_api_secret: str | None = Header(default=None),
     x_timestamp: str | None = Header(default=None),
+    x_nonce: str | None = Header(default=None),
     x_signature: str | None = Header(default=None),
 ) -> Any:
     body_text = (await request.body()).decode()
@@ -29,6 +31,7 @@ async def read_agent_handler_options(
         x_api_token,
         x_api_secret,
         x_timestamp,
+        x_nonce,
         x_signature,
     )
     count = session.exec(
@@ -41,10 +44,14 @@ async def read_agent_handler_options(
     ).all()
 
     token_owner = session.get(User, token.created_by)
-    if token_owner and token_owner.is_active and token_owner.id not in {user.id for user in users}:
+    if (
+        token_owner
+        and token_owner.is_active
+        and token_owner.id not in {user.id for user in users}
+    ):
         users = [token_owner, *users]
 
-    seen_ids: set = set()
+    seen_ids: set[uuid.UUID] = set()
     options = []
     for user in users:
         if user.id in seen_ids:

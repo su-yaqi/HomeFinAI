@@ -1,5 +1,4 @@
 from fastapi.testclient import TestClient
-from sqlmodel import Session
 
 from app.core.config import settings
 
@@ -68,3 +67,38 @@ def test_delete_category_blocked_by_child(
     )
     assert delete_response.status_code == 400
     assert delete_response.json()["detail"] == "Category has child categories"
+
+
+def test_categories_reject_invalid_hex_and_parent_cycles(
+    client: TestClient, normal_user_token_headers: dict[str, str]
+) -> None:
+    invalid_color = client.post(
+        f"{settings.API_V1_STR}/categories/",
+        headers=normal_user_token_headers,
+        json={"name": "Invalid Color", "color": "#zzzzzz"},
+    )
+    assert invalid_color.status_code == 422
+
+    parent = client.post(
+        f"{settings.API_V1_STR}/categories/",
+        headers=normal_user_token_headers,
+        json={"name": "Cycle Parent", "color": "#123456"},
+    ).json()
+    child = client.post(
+        f"{settings.API_V1_STR}/categories/",
+        headers=normal_user_token_headers,
+        json={
+            "name": "Cycle Child",
+            "color": "#abcdef",
+            "parent_id": parent["id"],
+        },
+    ).json()
+    cycle_response = client.put(
+        f"{settings.API_V1_STR}/categories/{parent['id']}",
+        headers=normal_user_token_headers,
+        json={"parent_id": child["id"]},
+    )
+    assert cycle_response.status_code == 400
+    assert (
+        cycle_response.json()["detail"] == "Category hierarchy cannot contain a cycle"
+    )

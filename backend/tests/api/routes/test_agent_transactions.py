@@ -1,9 +1,75 @@
+import hashlib
+import hmac
+import secrets
+import time
+
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from app.core.config import settings
 from app.models import EntryStatus, TransactionType
 from tests.utils.user import create_random_user
+
+
+def _signed_agent_headers(
+    *, token: str, secret: str, path: str, timestamp: int, nonce: str | None = None
+) -> dict[str, str]:
+    timestamp_text = str(timestamp)
+    nonce = nonce or secrets.token_hex(16)
+    signature = hmac.new(
+        secret.encode(),
+        msg=f"{timestamp_text}:{nonce}:GET:{path}:".encode(),
+        digestmod=hashlib.sha256,
+    ).hexdigest()
+    return {
+        "Authorization": f"Bearer {token}",
+        "X-API-Secret": secret,
+        "X-Timestamp": timestamp_text,
+        "X-Nonce": nonce,
+        "X-Signature": signature,
+    }
+
+
+def test_agent_token_with_secret_requires_fresh_hmac(
+    client: TestClient, superuser_token_headers: dict[str, str]
+) -> None:
+    token_response = client.post(
+        f"{settings.API_V1_STR}/system/api-tokens/",
+        headers=superuser_token_headers,
+        json={"name": "Signed Agent", "generate_secret": True},
+    )
+    assert token_response.status_code == 200
+    credentials = token_response.json()
+    path = f"{settings.API_V1_STR}/agent/categories/"
+
+    unsigned_response = client.get(
+        path,
+        headers={"Authorization": f"Bearer {credentials['token']}"},
+    )
+    assert unsigned_response.status_code == 401
+
+    stale_headers = _signed_agent_headers(
+        token=credentials["token"],
+        secret=credentials["secret"],
+        path=path,
+        timestamp=int(time.time()) - 600,
+    )
+    stale_response = client.get(path, headers=stale_headers)
+    assert stale_response.status_code == 401
+    assert stale_response.json() == {"detail": "Expired HMAC timestamp"}
+
+    valid_headers = _signed_agent_headers(
+        token=credentials["token"],
+        secret=credentials["secret"],
+        path=path,
+        timestamp=int(time.time()),
+    )
+    valid_response = client.get(path, headers=valid_headers)
+    assert valid_response.status_code == 200
+
+    replay_response = client.get(path, headers=valid_headers)
+    assert replay_response.status_code == 401
+    assert replay_response.json() == {"detail": "Replayed HMAC request"}
 
 
 def test_agent_transaction_crud(

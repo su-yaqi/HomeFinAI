@@ -36,7 +36,7 @@
 ```
 
 ## 依赖边界
-- 认证统一通过 `backend/app/api/deps.py` 注入，优先读取 Session Cookie，其次读取 Bearer Token；当前前端主流程只使用 Bearer Token。
+- 认证统一通过 `backend/app/api/deps.py` 注入，优先读取 Session Cookie，其次读取 Bearer Token；两类 Token 使用独立类型声明并绑定用户 `auth_version`，当前前端主流程只使用 Bearer Token。
 - 用户、分类、预算、交易、API Token 和 Dashboard 数据模型都集中在 `backend/app/models.py`。
 - 数据导入导出任务由 `datajob` / `datajoberror` 持久化，结果文件和错误文件落到本地临时目录。
 - 交易是财务域核心写模型，分类和预算都为交易提供约束与聚合基础；当前交易主语义字段为 `summary`，并通过 `detail` JSON 承载柔性详情和明细项。
@@ -47,6 +47,7 @@
 
 ## 关键架构决策
 - Bearer Token 登录主路径保留：为减少认证层改动，前端继续使用 `localStorage.access_token + Authorization: Bearer ...`。
+- Token 用途与版本隔离：Bearer、Cookie Session 和密码重置 Token 不能跨用途复用，密码变化后通过递增 `auth_version` 统一撤销旧 Token。
 - `login_name` 成为主登录标识：后端登录入口按 `login_name` 鉴权，并在需要时兼容邮箱形式输入。
 - MFA 以可选 TOTP 方式接入：当用户存在 `mfa_secret` 时，登录需要额外提供 6 位 `mfa_code`。
 - 生成客户端与手写封装并存：旧模板接口继续走生成客户端，新财务域先落在手写封装，后续如统一生成链路可再收敛。

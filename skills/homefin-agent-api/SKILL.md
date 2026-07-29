@@ -22,7 +22,9 @@ Read the consumer project's local config file at `.homefin-agent-api.json` befor
 6. Call agent endpoints with either:
    - `Authorization: Bearer <API_TOKEN>`
    - `X-API-Token: <API_TOKEN>`
-7. Add optional HMAC headers only if the caller explicitly needs signed requests.
+7. If the config contains `api_secret`, sign every request using a fresh random
+   nonce, timestamp, and the HMAC-SHA256 contract in the reference. A token issued
+   with a secret cannot fall back to unsigned requests or reuse a nonce.
 
 ## Required Inputs
 
@@ -31,6 +33,9 @@ The skill cannot guess secrets. It must read them from the local config file or 
 Required config keys:
 - `base_url`
 - `api_token`
+
+Optional config key:
+- `api_secret` (required by the server when the token was issued with a secret)
 
 If the config file is missing or incomplete, stop and ask the user for the missing value instead of trying to derive it from another credential flow.
 

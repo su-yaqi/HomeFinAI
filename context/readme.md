@@ -20,7 +20,9 @@ context/
 │   ├── v0.3.md
 │   ├── v0.4.md
 │   ├── v0.5.md
-│   └── v0.6.md
+│   ├── v0.6.md
+│   ├── v0.7.md
+│   └── v0.8.md
 └── modules/
     ├── app-shell/
     ├── auth/
@@ -48,5 +50,5 @@ context/
 
 ## 当前状态说明
 - `root + modules/*`：表示当前代码已实现状态。
-- `prds/v0.6/`：表示当前最新一轮安全与 Agent 能力增强的需求设计依据。
-- `changelogs/v0.6.md`：表示 v0.6 实际交付结果。
+- `prds/v0.7/`：表示当前最新一轮移动端响应式需求设计依据。
+- `changelogs/v0.8.md`：表示当前最新的认证、Agent 调用与数据完整性实际交付结果。

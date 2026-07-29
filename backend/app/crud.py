@@ -19,11 +19,12 @@ def create_user(*, session: Session, user_create: UserCreate) -> User:
 
 def update_user(*, session: Session, db_user: User, user_in: UserUpdate) -> Any:
     user_data = user_in.model_dump(exclude_unset=True)
-    extra_data = {}
+    extra_data: dict[str, Any] = {}
     if "password" in user_data:
         password = user_data["password"]
         hashed_password = get_password_hash(password)
         extra_data["hashed_password"] = hashed_password
+        extra_data["auth_version"] = db_user.auth_version + 1
     db_user.sqlmodel_update(user_data, update=extra_data)
     session.add(db_user)
     session.commit()
@@ -48,10 +49,19 @@ def get_user_by_login_name(*, session: Session, login_name: str) -> User | None:
 DUMMY_HASH = "$argon2id$v=19$m=65536,t=3,p=4$MjQyZWE1MzBjYjJlZTI0Yw$YTU4NGM5ZTZmYjE2NzZlZjY0ZWY3ZGRkY2U2OWFjNjk"
 
 
-def authenticate(*, session: Session, login_name: str, password: str) -> User | None:
-    db_user = get_user_by_login_name(session=session, login_name=login_name)
-    if not db_user and "@" in login_name:
-        db_user = get_user_by_email(session=session, email=login_name)
+def authenticate(
+    *,
+    session: Session,
+    password: str,
+    login_name: str | None = None,
+    email: str | None = None,
+) -> User | None:
+    identifier = login_name or email
+    if not identifier:
+        raise ValueError("login_name or email is required")
+    db_user = get_user_by_login_name(session=session, login_name=identifier)
+    if not db_user and "@" in identifier:
+        db_user = get_user_by_email(session=session, email=identifier)
     if not db_user:
         # Prevent timing attacks by running password verification even when user doesn't exist
         # This ensures the response time is similar whether or not the email exists

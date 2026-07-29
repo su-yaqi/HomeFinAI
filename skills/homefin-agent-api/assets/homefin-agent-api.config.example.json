@@ -1,5 +1,6 @@
 {
   "base_url": "http://<api-host>:<api-port>",
   "api_token": "replace-with-your-homefin-api-token",
+  "api_secret": "",
   "auth_header": "Authorization"
 }
