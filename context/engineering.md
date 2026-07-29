@@ -9,6 +9,8 @@
 - 本地最低风险报告：`make change-plan`
 - 完成声明检查：`make change-check`
 - 规则脚本回归：`make test-change-policy`
+- CI 路径/风险规划回归：`make test-ci-plan`
+- Compose 与备份配置校验：`make validate-compose`
 
 ## S/M/H 风险等级
 
@@ -40,6 +42,20 @@ Context 不再作为所有改动的机械触碰项。根级文件、模块文件
 
 完成状态同时要求范围收敛、风险匹配测试、context 处理、逻辑提交以及分支/提交/风险
 可追溯。
+
+## 分级 CI
+
+`.github/workflows/ci.yml` 是 PR、`main`、夜间和手动完整检查的统一入口。PR 由
+`scripts/ci-plan.sh` 根据路径推断最低风险并选择受影响检查；纯 S 文档变更不会运行
+E2E，H 路径强制选择完整后端、前端、E2E、Compose 和制品校验。`main`、夜间和手动
+运行始终执行全量检查。
+
+分支保护的单一稳定门禁为 `CI / CI Required`。它汇总本次被选择的作业；路径跳过仅
+允许发生在计划明确未选择的作业上。原有后端、Playwright、Compose 和 pre-commit
+工作流仅保留为手动诊断，不再各自产生 PR/main required check。
+
+制品校验覆盖冻结锁文件、生成客户端无漂移、Alembic 单一迁移头、开发/内网 Compose
+渲染、内网固定端口和 PostgreSQL 定时备份配置。
 
 ## 分支与版本
 

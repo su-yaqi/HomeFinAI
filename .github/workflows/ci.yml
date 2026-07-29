@@ -1,0 +1,299 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "17 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  plan:
+    name: Classify change
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      risk: ${{ steps.plan.outputs.risk }}
+      full: ${{ steps.plan.outputs.full }}
+      backend: ${{ steps.plan.outputs.backend }}
+      frontend: ${{ steps.plan.outputs.frontend }}
+      e2e: ${{ steps.plan.outputs.e2e }}
+      compose: ${{ steps.plan.outputs.compose }}
+      artifacts: ${{ steps.plan.outputs.artifacts }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Select risk-matched checks
+        id: plan
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          arguments=(--event "${EVENT_NAME}" --github-output "${GITHUB_OUTPUT}")
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            arguments+=(--base "${BASE_SHA}")
+          fi
+          bash scripts/ci-plan.sh "${arguments[@]}"
+
+  policy:
+    name: Policy and CI planner
+    needs:
+      - plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Validate policy scripts
+        run: |
+          bash -n scripts/change-policy.sh
+          bash -n scripts/ci-plan.sh
+          bash -n scripts/validate-compose.sh
+          make test-change-policy
+          make test-ci-plan
+      - name: Report selected risk
+        env:
+          INFERRED_RISK: ${{ needs.plan.outputs.risk }}
+          FULL_SUITE: ${{ needs.plan.outputs.full }}
+        run: |
+          printf 'Inferred minimum risk: %s\n' "${INFERRED_RISK}"
+          printf 'Full suite: %s\n' "${FULL_SUITE}"
+
+  static:
+    name: Formatting and static analysis
+    needs:
+      - plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.11"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.4"
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.12
+      - name: Install locked dependencies
+        run: |
+          uv sync --frozen --all-packages
+          (cd frontend && bun ci)
+      - name: Run checks for the selected range
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            uv run prek run --from-ref "${BASE_SHA}" --to-ref HEAD --show-diff-on-failure
+          else
+            uv run prek run --all-files --show-diff-on-failure
+          fi
+
+  backend:
+    name: Backend tests
+    if: needs.plan.outputs.backend == 'true'
+    needs:
+      - plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.10"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.4"
+      - name: Install locked dependencies
+        run: uv sync --frozen --all-packages
+      - name: Run migrations and tests
+        run: |
+          cleanup() {
+            docker compose down --volumes --remove-orphans
+          }
+          trap cleanup EXIT
+          docker compose up --detach --wait db mailcatcher
+          (
+            cd backend
+            uv run bash scripts/prestart.sh
+            uv run bash scripts/tests-start.sh "Coverage for ${GITHUB_SHA}"
+            uv run coverage report --fail-under=90
+          )
+      - name: Store coverage report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: coverage-html-${{ github.run_attempt }}
+          path: backend/htmlcov
+          include-hidden-files: true
+          retention-days: 7
+
+  frontend:
+    name: Frontend build and static checks
+    if: needs.plan.outputs.frontend == 'true'
+    needs:
+      - plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.12
+      - name: Install locked dependencies
+        run: bun ci
+        working-directory: frontend
+      - name: Check formatting and types
+        run: |
+          bunx biome check --no-errors-on-unmatched --files-ignore-unknown=true ./
+          bun run build
+        working-directory: frontend
+
+  artifacts:
+    name: Generated files, locks, migrations, and Compose
+    if: needs.plan.outputs.artifacts == 'true'
+    needs:
+      - plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.10"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.4"
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.12
+      - name: Validate lock files
+        run: |
+          uv lock --check
+          uv sync --frozen --all-packages
+          (cd frontend && bun ci)
+      - name: Validate generated client
+        run: |
+          bash scripts/generate-client.sh
+          git diff --exit-code -- frontend/src/client
+      - name: Validate migration graph
+        run: uv run alembic heads
+        working-directory: backend
+      - name: Validate Compose and backup configuration
+        run: make validate-compose
+
+  compose:
+    name: Compose smoke test
+    if: needs.plan.outputs.compose == 'true'
+    needs:
+      - plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Build and smoke-test isolated stack
+        run: |
+          cleanup() {
+            make dev-down DEV_SLOT=0
+          }
+          trap cleanup EXIT
+          make dev-up DEV_SLOT=0
+          curl --fail --show-error http://127.0.0.1:21001/api/v1/utils/health-check/
+          curl --fail --show-error http://127.0.0.1:21000/
+
+  e2e:
+    name: End-to-end tests
+    if: needs.plan.outputs.e2e == 'true'
+    needs:
+      - plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Run isolated browser suite
+        run: make test-e2e DEV_SLOT=1
+      - name: Store Playwright artifacts
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: playwright-results-${{ github.run_attempt }}
+          path: |
+            frontend/blob-report
+            frontend/test-results
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+  ci-required:
+    name: CI Required
+    if: always()
+    needs:
+      - plan
+      - policy
+      - static
+      - backend
+      - frontend
+      - artifacts
+      - compose
+      - e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every selected check
+        uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # v1.2.2
+        with:
+          jobs: ${{ toJSON(needs) }}
+          allowed-skips: backend,frontend,artifacts,compose,e2e
