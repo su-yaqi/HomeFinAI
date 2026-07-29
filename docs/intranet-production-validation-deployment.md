@@ -70,6 +70,39 @@
 另外，构建前端时还需要一个额外环境变量：
 
 - `INTRANET_API_URL=http://<api-host>:8000`
+- `BUSINESS_TIMEZONE=Asia/Shanghai`
+
+GitHub Staging/Production 工作流需要以下必填 Secret：
+
+- 通用或对应 GitHub Environment 内同名配置：
+  `SECRET_KEY`、`FIRST_SUPERUSER`、`FIRST_SUPERUSER_PASSWORD`、`POSTGRES_PASSWORD`
+- 环境专用项目名：
+  `STACK_NAME_STAGING` / `STACK_NAME_PRODUCTION`
+- 环境专用访问地址：
+  `FRONTEND_HOST_STAGING` / `FRONTEND_HOST_PRODUCTION`
+- 环境专用 CORS：
+  `BACKEND_CORS_ORIGINS_STAGING` / `BACKEND_CORS_ORIGINS_PRODUCTION`
+- 环境专用 API 地址：
+  `INTRANET_API_URL_STAGING` / `INTRANET_API_URL_PRODUCTION`
+
+邮件和监控相关的 `SMTP_*`、`EMAILS_FROM_EMAIL`、`SENTRY_DSN` 可按实际接入情况配置。
+执行节点还必须分别具备 `self-hosted + staging` 或 `self-hosted + production`
+Runner 标签，并安装可用的 Docker Compose。
+
+工作流会同时加载 `compose.yml` 与 `compose.intranet.yml`，因此继续保持本文档定义的
+内网 HTTP、固定访问端口、备份卷和按需 Adminer 语义。
+
+### 当前自动化边界
+
+现有工作流仍是在目标 Runner 上现场构建并直接 `up -d` 的过渡实现，尚未提供：
+
+- 等待同一提交完整 CI 通过的单一门禁
+- 以 Commit SHA 标识、只构建一次并在 Staging/Production 间晋级的不可变镜像
+- 部署后的完整健康检查与冒烟测试
+- 可靠的应用镜像回退，以及数据库迁移失败后的人工处置门禁
+
+在这些能力完成并验证前，不应把当前工作流视为最终安全发布链路，也不应仅凭本地
+配置解析通过就启用正式环境部署。
 
 说明：
 

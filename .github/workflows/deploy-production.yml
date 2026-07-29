@@ -27,11 +27,29 @@ jobs:
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
       EMAILS_FROM_EMAIL: ${{ secrets.EMAILS_FROM_EMAIL }}
       POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      POSTGRES_USER: postgres
+      POSTGRES_DB: app
+      FRONTEND_HOST: ${{ secrets.FRONTEND_HOST_PRODUCTION }}
+      BACKEND_CORS_ORIGINS: ${{ secrets.BACKEND_CORS_ORIGINS_PRODUCTION }}
+      BUSINESS_TIMEZONE: Asia/Shanghai
+      DOCKER_IMAGE_BACKEND: homefin-production-backend
+      DOCKER_IMAGE_FRONTEND: homefin-production-frontend
+      INTRANET_API_URL: ${{ secrets.INTRANET_API_URL_PRODUCTION }}
       SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - run: docker compose -f compose.yml --project-name ${{ secrets.STACK_NAME_PRODUCTION }} build
-      - run: docker compose -f compose.yml --project-name ${{ secrets.STACK_NAME_PRODUCTION }} up -d
+      - name: Validate deployment configuration
+        run: |
+          for variable in STACK_NAME SECRET_KEY FIRST_SUPERUSER FIRST_SUPERUSER_PASSWORD POSTGRES_PASSWORD FRONTEND_HOST BACKEND_CORS_ORIGINS INTRANET_API_URL; do
+            if [ -z "${!variable}" ]; then
+              echo "Required deployment variable is missing: ${variable}" >&2
+              exit 1
+            fi
+          done
+      - name: Build production services
+        run: docker compose -f compose.yml -f compose.intranet.yml --project-name "$STACK_NAME" build
+      - name: Start production services
+        run: docker compose -f compose.yml -f compose.intranet.yml --project-name "$STACK_NAME" up -d
