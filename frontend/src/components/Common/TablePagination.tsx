@@ -36,19 +36,19 @@ export function TablePagination({
   const end = Math.min(page * pageSize, totalCount)
 
   return (
-    <div className="flex flex-col gap-4 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:gap-4">
+    <div className="flex min-w-0 flex-col gap-4 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:gap-4">
         <span>
           Showing {start}-{end} of{" "}
           <span className="font-medium text-foreground">{totalCount}</span>
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 sm:justify-start">
           <span>Rows per page</span>
           <Select
             value={String(pageSize)}
             onValueChange={(value) => onPageSizeChange(Number(value))}
           >
-            <SelectTrigger className="h-8 w-[88px]">
+            <SelectTrigger className="h-11 w-[88px] sm:h-8">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -61,7 +61,31 @@ export function TablePagination({
           </Select>
         </div>
       </div>
-      <div className="flex items-center justify-between gap-4 sm:justify-end">
+      <div className="flex items-center justify-between gap-3 sm:hidden">
+        <Button
+          variant="outline"
+          className="min-h-11 flex-1"
+          onClick={() => onPageChange(page - 1)}
+          disabled={page <= 1}
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Prev
+        </Button>
+        <span className="shrink-0 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">{page}</span> /{" "}
+          {pageCount}
+        </span>
+        <Button
+          variant="outline"
+          className="min-h-11 flex-1"
+          onClick={() => onPageChange(page + 1)}
+          disabled={page >= pageCount}
+        >
+          Next
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="hidden items-center justify-between gap-4 sm:flex sm:justify-end">
         <span className="text-sm text-muted-foreground">
           Page <span className="font-medium text-foreground">{page}</span> of{" "}
           <span className="font-medium text-foreground">{pageCount}</span>

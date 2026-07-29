@@ -89,8 +89,8 @@ const MfaSettings = () => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
-          <div>
+        <div className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <p className="font-medium">
               {currentUser?.has_mfa ? "MFA is enabled" : "MFA is not enabled"}
             </p>
@@ -102,14 +102,16 @@ const MfaSettings = () => {
           </div>
           {!currentUser?.has_mfa ? (
             <LoadingButton
+              className="w-full sm:w-auto"
               onClick={() => setupMutation.mutate()}
               loading={setupMutation.isPending}
             >
               Set up MFA
             </LoadingButton>
           ) : (
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 min-[420px]:flex-row">
               <LoadingButton
+                className="min-h-11 flex-1 sm:min-h-9"
                 variant="outline"
                 onClick={() => resetMutation.mutate()}
                 loading={resetMutation.isPending}
@@ -118,6 +120,7 @@ const MfaSettings = () => {
                 Reset
               </LoadingButton>
               <LoadingButton
+                className="min-h-11 flex-1 sm:min-h-9"
                 variant="destructive"
                 onClick={() => disableMutation.mutate()}
                 loading={disableMutation.isPending}
@@ -170,8 +173,9 @@ const MfaSettings = () => {
                   }
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 min-[420px]:flex-row">
                 <Button
+                  className="min-h-11 flex-1 sm:min-h-9"
                   variant="outline"
                   onClick={() => {
                     setSetupSecret(null)
@@ -183,6 +187,7 @@ const MfaSettings = () => {
                   Cancel
                 </Button>
                 <LoadingButton
+                  className="min-h-11 flex-1 sm:min-h-9"
                   onClick={() => enableMutation.mutate()}
                   loading={enableMutation.isPending}
                   disabled={verificationCode.length !== 6}

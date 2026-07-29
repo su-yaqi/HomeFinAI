@@ -25,10 +25,11 @@ function Layout() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1 text-muted-foreground" />
+        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur sm:h-16">
+          <SidebarTrigger className="-ml-1 size-10 text-muted-foreground sm:size-7" />
+          <span className="text-sm font-semibold md:hidden">HomeFin</span>
         </header>
-        <main className="flex-1 p-6 md:p-8">
+        <main className="min-w-0 flex-1 p-4 sm:p-6 md:p-8">
           <div className="mx-auto max-w-7xl">
             <Outlet />
           </div>

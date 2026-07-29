@@ -106,12 +106,12 @@ services:
     depends_on:
       - backend
       - mailcatcher
-    env_file:
-      - .env
     environment:
       - VITE_API_URL=http://backend:8000
       - MAILCATCHER_HOST=http://mailcatcher:1080
       - PLAYWRIGHT_HTML_HOST=0.0.0.0
+      - FIRST_SUPERUSER=${FIRST_SUPERUSER:-admin@example.com}
+      - FIRST_SUPERUSER_PASSWORD=${FIRST_SUPERUSER_PASSWORD:-changethis-local-admin-password}
       - CI=${CI}
     volumes:
       - ./frontend/blob-report:/app/frontend/blob-report

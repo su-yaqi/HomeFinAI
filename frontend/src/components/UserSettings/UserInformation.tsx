@@ -138,10 +138,11 @@ const UserInformation = () => {
             }
           />
 
-          <div className="flex gap-3">
+          <div className="flex flex-col gap-3 min-[420px]:flex-row">
             {editMode ? (
               <>
                 <LoadingButton
+                  className="min-h-11 flex-1 sm:min-h-9 sm:flex-none"
                   type="submit"
                   loading={mutation.isPending}
                   disabled={!form.formState.isDirty}
@@ -149,6 +150,7 @@ const UserInformation = () => {
                   Save
                 </LoadingButton>
                 <Button
+                  className="min-h-11 flex-1 sm:min-h-9 sm:flex-none"
                   type="button"
                   variant="outline"
                   onClick={onCancel}
@@ -158,7 +160,11 @@ const UserInformation = () => {
                 </Button>
               </>
             ) : (
-              <Button type="button" onClick={toggleEditMode}>
+              <Button
+                className="min-h-11 w-full sm:min-h-9 sm:w-auto"
+                type="button"
+                onClick={toggleEditMode}
+              >
                 Edit
               </Button>
             )}
