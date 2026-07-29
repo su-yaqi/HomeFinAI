@@ -1,0 +1,6 @@
+services:
+  playwright:
+    ports:
+      - target: 9323
+        published: "${HOMEFIN_PLAYWRIGHT_UI_PORT:-21006}"
+        host_ip: 127.0.0.1

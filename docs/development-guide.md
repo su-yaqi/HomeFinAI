@@ -136,6 +136,28 @@ This guide defines how to extend the current project template safely and consist
   - Playwright paths touching the changed behavior
 
 ## Tooling And Commands
+### Docker development instances
+Use the repository `Makefile` for Docker-based local work. It assigns a stable
+Compose project and deterministic ports from `DEV_SLOT`, checks conflicts before
+startup, and never stops another project to free a port.
+
+```bash
+make dev-up
+make dev-up DEV_SLOT=1
+make dev-ps DEV_SLOT=1
+make dev-down DEV_SLOT=1
+```
+
+Adminer, Mailcatcher and Playwright UI are opt-in:
+
+```bash
+make adminer-up
+make mail-up
+make playwright-ui
+```
+
+See `docs/local-development.md` for the complete port contract and safety rules.
+
 ### Common commands
 ```bash
 bun install
@@ -148,6 +170,13 @@ uv sync
 source .venv/bin/activate
 bash scripts/test.sh
 bash scripts/lint.sh
+```
+
+Docker-based backend and E2E tests use separate, project-scoped test stacks:
+
+```bash
+make test-backend
+make test-e2e
 ```
 
 ### Client regeneration
