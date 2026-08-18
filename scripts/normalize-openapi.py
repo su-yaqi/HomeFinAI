@@ -12,8 +12,14 @@ def normalize_binary_uploads(value: Any) -> None:
             value.get("type") == "string"
             and value.get("contentMediaType") == "application/octet-stream"
         ):
-            value["format"] = "binary"
-            value.pop("contentMediaType", None)
+            normalized = {
+                ("format" if key == "contentMediaType" else key): (
+                    "binary" if key == "contentMediaType" else child
+                )
+                for key, child in value.items()
+            }
+            value.clear()
+            value.update(normalized)
         for child in value.values():
             normalize_binary_uploads(child)
     elif isinstance(value, list):
