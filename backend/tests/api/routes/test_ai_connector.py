@@ -2,6 +2,7 @@ import asyncio
 import base64
 import hashlib
 import uuid
+from typing import Any, cast
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -11,7 +12,7 @@ from pytest import MonkeyPatch
 from sqlmodel import Session, func, select
 
 import app.ai_connector.oauth as oauth_module
-from app.ai_connector.oauth import CIMDClientInformation, oauth_provider
+from app.ai_connector.oauth import AI_SCOPES, CIMDClientInformation, oauth_provider
 from app.core.config import settings
 from app.core.db import engine
 from app.models import AIOperation, Transaction
@@ -32,6 +33,137 @@ def _codex_client() -> CIMDClientInformation:
         scope="finance:read transactions:write",
         application_type="native",
     )
+
+
+def _authorize_full_scope_codex(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    monkeypatch: MonkeyPatch,
+) -> str:
+    suffix = uuid.uuid4().hex
+    callback_path = f"/callback/{suffix}"
+    client_info = CIMDClientInformation(
+        client_id=f"https://chatgpt.com/oauth/codex/{suffix}/client.json",
+        client_name="Codex Full Scope Test",
+        redirect_uris=[AnyUrl(f"http://127.0.0.1{callback_path}")],
+        token_endpoint_auth_method="none",
+        grant_types=["authorization_code", "refresh_token"],
+        scope=" ".join(AI_SCOPES),
+        application_type="native",
+    )
+
+    async def fake_get_client(client_id: str) -> CIMDClientInformation | None:
+        return client_info if client_id == client_info.client_id else None
+
+    monkeypatch.setattr(oauth_provider, "get_client", fake_get_client)
+    verifier = "full-scope-verifier-" + "a" * 48
+    redirect_uri = f"http://127.0.0.1:17322{callback_path}"
+    authorize_response = client.get(
+        "/authorize",
+        params={
+            "client_id": client_info.client_id,
+            "redirect_uri": redirect_uri,
+            "response_type": "code",
+            "code_challenge": _challenge(verifier),
+            "code_challenge_method": "S256",
+            "scope": " ".join(AI_SCOPES),
+            "resource": settings.MCP_RESOURCE_URL,
+            "state": suffix,
+        },
+        follow_redirects=False,
+    )
+    assert authorize_response.status_code == 302
+    request_token = parse_qs(urlsplit(authorize_response.headers["location"]).query)[
+        "request"
+    ][0]
+    decision = client.post(
+        f"{settings.API_V1_STR}/ai-connections/authorization-request",
+        json={"request": request_token, "approved": True},
+        headers=superuser_token_headers,
+    )
+    assert decision.status_code == 200
+    code = parse_qs(urlsplit(decision.json()["redirect_url"]).query)["code"][0]
+    token_response = client.post(
+        "/token",
+        data={
+            "grant_type": "authorization_code",
+            "client_id": client_info.client_id,
+            "code": code,
+            "redirect_uri": redirect_uri,
+            "code_verifier": verifier,
+            "resource": settings.MCP_RESOURCE_URL,
+        },
+    )
+    assert token_response.status_code == 200
+    token_payload = cast(dict[str, Any], token_response.json())
+    return str(token_payload["access_token"])
+
+
+def _mcp_tool_call(
+    client: TestClient,
+    access_token: str,
+    name: str,
+    arguments: dict[str, Any],
+) -> dict[str, Any]:
+    response = client.post(
+        "/mcp",
+        json={
+            "jsonrpc": "2.0",
+            "id": uuid.uuid4().hex,
+            "method": "tools/call",
+            "params": {
+                "_meta": {
+                    "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                    "io.modelcontextprotocol/clientInfo": {
+                        "name": "codex-full-scope-test",
+                        "version": "1.0",
+                    },
+                    "io.modelcontextprotocol/clientCapabilities": {},
+                },
+                "name": name,
+                "arguments": arguments,
+            },
+        },
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Accept": "application/json, text/event-stream",
+            "MCP-Protocol-Version": "2026-07-28",
+            "Mcp-Method": "tools/call",
+            "Mcp-Name": name,
+            "Host": "127.0.0.1:8000",
+        },
+    )
+    assert response.status_code == 200, response.text
+    payload = cast(dict[str, Any], response.json())
+    result = payload["result"]
+    assert isinstance(result, dict)
+    return result
+
+
+def _confirmed_mcp_write(
+    client: TestClient,
+    access_token: str,
+    name: str,
+    arguments: dict[str, Any],
+) -> dict[str, Any]:
+    pending = _mcp_tool_call(client, access_token, name, arguments)
+    assert pending["isError"] is False
+    confirmation = pending["structuredContent"]
+    assert confirmation["status"] == "input_required"
+    confirmed = _mcp_tool_call(
+        client,
+        access_token,
+        name,
+        {
+            **arguments,
+            "confirm": True,
+            "confirmation_id": confirmation["confirmation_id"],
+        },
+    )
+    assert confirmed["isError"] is False, confirmed
+    structured_content = confirmed["structuredContent"]
+    assert isinstance(structured_content, dict)
+    return structured_content
 
 
 def test_oauth_metadata_advertises_cimd_public_client(client: TestClient) -> None:
@@ -266,7 +398,7 @@ def test_codex_cimd_pkce_authorization_flow(
     )
     assert category_response.status_code == 200
     category_id = category_response.json()["id"]
-    arguments = {
+    arguments: dict[str, Any] = {
         "transaction": {
             "category_id": category_id,
             "transaction_type": 2,
@@ -449,3 +581,320 @@ def test_codex_cimd_pkce_authorization_flow(
     assert (
         asyncio.run(oauth_provider.load_access_token(refreshed["access_token"])) is None
     )
+
+
+def test_full_scope_mcp_crud_tools_require_confirmation_and_commit(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    monkeypatch: MonkeyPatch,
+) -> None:
+    access_token = _authorize_full_scope_codex(
+        client, superuser_token_headers, monkeypatch
+    )
+    unique = uuid.uuid4().hex[:10]
+
+    root_arguments: dict[str, Any] = {
+        "category": {
+            "name": f"MCP Root {unique}",
+            "color": "#334155",
+        },
+        "idempotency_key": f"category-root-{unique}",
+    }
+    root_pending = _mcp_tool_call(
+        client, access_token, "create_category", root_arguments
+    )
+    assert root_pending["isError"] is False
+    root_confirmation = root_pending["structuredContent"]["confirmation_id"]
+    mismatched = _mcp_tool_call(
+        client,
+        access_token,
+        "create_category",
+        {
+            **root_arguments,
+            "category": {**root_arguments["category"], "name": f"Changed {unique}"},
+            "confirm": True,
+            "confirmation_id": root_confirmation,
+        },
+    )
+    assert mismatched["isError"] is True
+    assert "does not match" in mismatched["content"][0]["text"]
+    root_confirmed = _mcp_tool_call(
+        client,
+        access_token,
+        "create_category",
+        {
+            **root_arguments,
+            "confirm": True,
+            "confirmation_id": root_confirmation,
+        },
+    )
+    assert root_confirmed["isError"] is False
+    root_id = root_confirmed["structuredContent"]["id"]
+
+    child = _confirmed_mcp_write(
+        client,
+        access_token,
+        "create_category",
+        {
+            "category": {
+                "name": f"MCP Child {unique}",
+                "parent_id": root_id,
+                "color": "#0f766e",
+            },
+            "idempotency_key": f"category-child-{unique}",
+        },
+    )
+    child_id = child["id"]
+    budget = _confirmed_mcp_write(
+        client,
+        access_token,
+        "create_budget",
+        {
+            "budget": {
+                "name": f"MCP Budget {unique}",
+                "amount": 500,
+                "period": 1,
+                "year": 2026,
+            },
+            "idempotency_key": f"budget-create-{unique}",
+        },
+    )
+    budget_id = budget["id"]
+
+    options = _mcp_tool_call(client, access_token, "get_transaction_options", {})[
+        "structuredContent"
+    ]
+    assert any(item["id"] == child_id for item in options["categories"])
+    assert any(item["id"] == budget_id for item in options["budgets"])
+    handler_id = options["handlers"][0]["id"]
+
+    transaction = _confirmed_mcp_write(
+        client,
+        access_token,
+        "create_transaction",
+        {
+            "transaction": {
+                "category_id": child_id,
+                "budget_id": budget_id,
+                "transaction_type": 2,
+                "amount": 25.5,
+                "summary": f"MCP expense {unique}",
+                "description": "full-scope connector test",
+                "detail": {"source": "pytest"},
+                "entry_status": 3,
+                "handler_user_id": handler_id,
+                "transaction_date": "2026-08-18",
+            },
+            "idempotency_key": f"transaction-create-{unique}",
+        },
+    )
+    transaction_id = transaction["id"]
+
+    invalid_confirmation = _mcp_tool_call(
+        client,
+        access_token,
+        "update_budget",
+        {
+            "budget_id": budget_id,
+            "changes": {"amount": 650},
+            "idempotency_key": f"budget-invalid-confirmation-{unique}",
+            "confirm": True,
+            "confirmation_id": "not-a-signed-confirmation",
+        },
+    )
+    assert invalid_confirmation["isError"] is True
+    assert "invalid or expired" in invalid_confirmation["content"][0]["text"]
+
+    updated_budget = _confirmed_mcp_write(
+        client,
+        access_token,
+        "update_budget",
+        {
+            "budget_id": budget_id,
+            "changes": {"name": f"Updated Budget {unique}", "amount": 650},
+            "idempotency_key": f"budget-update-{unique}",
+        },
+    )
+    assert updated_budget["amount"] == 650
+    updated_child = _confirmed_mcp_write(
+        client,
+        access_token,
+        "update_category",
+        {
+            "category_id": child_id,
+            "changes": {
+                "name": f"Updated Child {unique}",
+                "parent_id": root_id,
+                "color": "#115e59",
+            },
+            "idempotency_key": f"category-update-{unique}",
+        },
+    )
+    assert updated_child["name"] == f"Updated Child {unique}"
+    updated_transaction = _confirmed_mcp_write(
+        client,
+        access_token,
+        "update_transaction",
+        {
+            "transaction_id": transaction_id,
+            "changes": {
+                "summary": f"Updated MCP expense {unique}",
+                "category_id": root_id,
+                "handler_user_id": None,
+            },
+            "idempotency_key": f"transaction-update-{unique}",
+        },
+    )
+    assert updated_transaction["summary"] == f"Updated MCP expense {unique}"
+
+    search = _mcp_tool_call(
+        client,
+        access_token,
+        "search_transactions",
+        {
+            "keyword": unique,
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-31",
+            "transaction_type": 2,
+            "category_id": root_id,
+            "budget_id": budget_id,
+            "entry_status": 3,
+            "handler_user_id": handler_id,
+            "page": 1,
+            "page_size": 10,
+        },
+    )["structuredContent"]
+    assert search["count"] == 1
+    budget_status = _mcp_tool_call(
+        client,
+        access_token,
+        "get_budget_status",
+        {"year": 2026, "page": 1, "page_size": 10},
+    )["structuredContent"]
+    assert any(item["id"] == budget_id for item in budget_status["data"])
+    categories = _mcp_tool_call(
+        client,
+        access_token,
+        "list_categories",
+        {"page": 1, "page_size": 100},
+    )["structuredContent"]
+    child_row = next(item for item in categories["data"] if item["id"] == child_id)
+    assert child_row["path"].endswith(f"Updated Child {unique}")
+    overview = _mcp_tool_call(
+        client,
+        access_token,
+        "get_financial_overview",
+        {
+            "period": "custom",
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-31",
+        },
+    )["structuredContent"]
+    assert overview["summary"]["expense"] >= 25.5
+
+    for period in ("current_month", "last_month", "current_year", "last_6_months"):
+        period_result = _mcp_tool_call(
+            client,
+            access_token,
+            "get_financial_overview",
+            {"period": period},
+        )
+        assert period_result["isError"] is False
+
+    for name, arguments, message in (
+        (
+            "search_transactions",
+            {"page": 0, "page_size": 11},
+            "page must be positive",
+        ),
+        (
+            "get_budget_status",
+            {"year": 1900, "page": 1, "page_size": 10},
+            "Invalid year",
+        ),
+        (
+            "list_categories",
+            {"page": 0, "page_size": 50},
+            "Invalid pagination",
+        ),
+        (
+            "get_financial_overview",
+            {"period": "custom"},
+            "custom requires",
+        ),
+        (
+            "get_financial_overview",
+            {"period": "current_month", "start_date": "2026-08-01"},
+            "only valid with custom",
+        ),
+        (
+            "get_financial_overview",
+            {
+                "period": "custom",
+                "start_date": "2026-08-31",
+                "end_date": "2026-08-01",
+            },
+            "must be ordered",
+        ),
+    ):
+        invalid = _mcp_tool_call(client, access_token, name, arguments)
+        assert invalid["isError"] is True
+        assert message in invalid["content"][0]["text"]
+
+    deleted_transaction = _confirmed_mcp_write(
+        client,
+        access_token,
+        "delete_transaction",
+        {
+            "transaction_id": transaction_id,
+            "idempotency_key": f"transaction-delete-{unique}",
+        },
+    )
+    assert deleted_transaction["deleted"] is True
+    deleted_budget = _confirmed_mcp_write(
+        client,
+        access_token,
+        "delete_budget",
+        {
+            "budget_id": budget_id,
+            "idempotency_key": f"budget-delete-{unique}",
+        },
+    )
+    assert deleted_budget["deleted"] is True
+    for category_id, label in ((child_id, "child"), (root_id, "root")):
+        deleted_category = _confirmed_mcp_write(
+            client,
+            access_token,
+            "delete_category",
+            {
+                "category_id": category_id,
+                "idempotency_key": f"category-delete-{label}-{unique}",
+            },
+        )
+        assert deleted_category["deleted"] is True
+
+    connections_response = client.get(
+        f"{settings.API_V1_STR}/ai-connections/",
+        headers=superuser_token_headers,
+    )
+    assert connections_response.status_code == 200
+    full_scope_connection = next(
+        item
+        for item in connections_response.json()["data"]
+        if item["client_name"] == "Codex Full Scope Test"
+    )
+    revoke_response = client.delete(
+        f"{settings.API_V1_STR}/ai-connections/{full_scope_connection['id']}",
+        headers=superuser_token_headers,
+    )
+    assert revoke_response.status_code == 200
+    repeated_revoke = client.delete(
+        f"{settings.API_V1_STR}/ai-connections/{full_scope_connection['id']}",
+        headers=superuser_token_headers,
+    )
+    assert repeated_revoke.status_code == 200
+    missing_revoke = client.delete(
+        f"{settings.API_V1_STR}/ai-connections/{uuid.uuid4()}",
+        headers=superuser_token_headers,
+    )
+    assert missing_revoke.status_code == 404

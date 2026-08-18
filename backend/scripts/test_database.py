@@ -14,9 +14,7 @@ _SAFE_TEST_DATABASE = re.compile(r"^[A-Za-z0-9_]+_test$")
 def _validated_database_name() -> str:
     name = settings.POSTGRES_DB
     if _SAFE_TEST_DATABASE.fullmatch(name) is None:
-        raise RuntimeError(
-            "Refusing to manage a database that does not end in '_test'"
-        )
+        raise RuntimeError("Refusing to manage a database that does not end in '_test'")
     return name
 
 

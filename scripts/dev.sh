@@ -353,6 +353,8 @@ case "${command_name}" in
     compose_test run --rm --no-deps backend \
       bash -lc 'cd /app/backend && exec uv run bash scripts/tests-start.sh "$@"' \
       bash "$@"
+    compose_test run --rm --no-deps backend \
+      bash -lc 'cd /app/backend && exec uv run coverage report --fail-under=90'
     trap - EXIT INT TERM
     cleanup_test_project
     ;;
