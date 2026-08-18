@@ -145,6 +145,7 @@ def test_transactions_support_summary_and_structured_detail(
             "entry_status": EntryStatus.ENTERED,
             "transaction_date": "2026-05-29",
             "summary": "麦当劳",
+            "description": "测试记录的独立说明",
             "detail": {
                 "note": "晚饭",
                 "items": [
@@ -159,7 +160,7 @@ def test_transactions_support_summary_and_structured_detail(
     assert created["summary"] == "麦当劳"
     assert created["detail"]["note"] == "晚饭"
     assert created["detail"]["items"][0]["name"] == "双层吉士汉堡套餐"
-    assert created["description"] == "麦当劳"
+    assert created["description"] == "测试记录的独立说明"
 
     update_response = client.put(
         f"{settings.API_V1_STR}/transactions/{created['id']}",

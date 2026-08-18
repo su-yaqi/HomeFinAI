@@ -13,7 +13,9 @@ services:
     command:
       - bash
       - -lc
-      - uv run python app/backend_pre_start.py && uv run alembic upgrade head && uv run python app/initial_data.py
+      - uv run python app/backend_pre_start.py && uv run python app/legacy_ai_retirement_audit.py && uv run alembic upgrade head && uv run python app/initial_data.py
+    environment:
+      UV_PROJECT_ENVIRONMENT: /tmp/homefin-backend-venv
 
   backend:
     restart: "no"
@@ -40,6 +42,7 @@ services:
         - path: ./uv.lock
           action: rebuild
     environment:
+      UV_PROJECT_ENVIRONMENT: /tmp/homefin-backend-venv
       SMTP_HOST: mailcatcher
       SMTP_PORT: "1025"
       SMTP_TLS: "false"

@@ -35,6 +35,12 @@ const useAuth = () => {
   const loginMutation = useMutation({
     mutationFn: login,
     onSuccess: () => {
+      const returnTo = sessionStorage.getItem("post_login_redirect")
+      sessionStorage.removeItem("post_login_redirect")
+      if (returnTo?.startsWith("/") && !returnTo.startsWith("//")) {
+        window.location.assign(returnTo)
+        return
+      }
       navigate({ to: "/" })
     },
     onError: handleError.bind(showErrorToast),

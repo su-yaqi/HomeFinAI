@@ -1,9 +1,9 @@
 # 数据模型
 
-> v0.8 后，项目的数据核心为 `user + category + budget + transaction + apitoken + apitokennonce + datajob + datajoberror`；`transaction` 通过 `handler_user_id` 关联经手人用户并使用 `summary + detail` 承载账单摘要和柔性详情，`apitokennonce` 承载 Agent HMAC 防重放状态。
+> v0.9 当前数据核心为 `user + category + budget + transaction + aiconnection + OAuth 状态表 + aioperation + datajob + datajoberror`。`apitoken + apitokennonce` 仅作为废弃历史表保留，运行时不再使用。
 
 ## 命名规范
-- 表名：由 SQLModel 根据类名推导，当前实际为 `user`、`category`、`budget`、`transaction`、`apitoken`、`apitokennonce`、`datajob`、`datajoberror`
+- 表名：由 SQLModel 根据类名推导；AI Connector 使用 `aiconnection`、`aiauthorizationdecision`、`aiauthorizationcode`、`airefreshtoken` 与 `aioperation`。
 - 字段名：Python 侧统一使用 snake_case
 - 主键：统一使用 UUID
 - 时间：统一使用 UTC 时间，`created_at` / `last_used_at` 为 timezone-aware datetime
@@ -24,8 +24,12 @@ User 1 ──── N Budget
 User 1 ──── N Transaction(owner_id)
 User 1 ──── N Transaction(handler_user_id)
 User 1 ──── N ApiToken
+User 1 ──── N AIConnection
 User 1 ──── N DataJob
 ApiToken 1 ──── N ApiTokenNonce
+AIConnection 1 ──── N AIAuthorizationCode
+AIConnection 1 ──── N AIRefreshToken
+AIConnection 1 ──── N AIOperation
 
 Category 1 ──── N Transaction
 Budget   1 ──── N Transaction
@@ -108,7 +112,7 @@ DataJob  1 ──── N DataJobError
 | created_at | timestamptz | 是 | 当前 UTC 时间 | 创建时间 |
 
 ### apitoken
-管理员创建的外部 Agent 调用凭证表。
+[废弃] 旧外部 Agent 调用凭证表。v0.9 迁移统一停用，应用没有创建、认证或管理入口，仅供升级影响审计和历史定位。
 
 | 字段 | 类型 | 可空 | 默认值 | 说明 |
 |------|------|------|--------|------|
@@ -124,7 +128,7 @@ DataJob  1 ──── N DataJobError
 | created_at | timestamptz | 是 | 当前 UTC 时间 | 创建时间 |
 
 ### apitokennonce
-Agent HMAC 请求的防重放记录表。
+[废弃] 旧 Agent HMAC 防重放表。v0.9 不再新增记录，后续物理清理需独立迁移和备份确认。
 
 | 字段 | 类型 | 可空 | 默认值 | 说明 |
 |------|------|------|--------|------|
@@ -132,6 +136,25 @@ Agent HMAC 请求的防重放记录表。
 | token_id | UUID | 否 | - | 关联 `apitoken.id`，Token 删除时级联删除 |
 | nonce | varchar(128) | 否 | - | 单次请求随机值，与 `token_id` 组成唯一约束 |
 | created_at | timestamptz | 否 | 当前 UTC 时间 | 接受请求的时间，用于清理过期 Nonce |
+
+### aiconnection 与 OAuth 状态表
+`aiconnection` 记录用户授权的客户端、Scope、状态、认证版本和最后使用时间；`aiauthorizationdecision` 使每个授权请求只能决定一次；`aiauthorizationcode` 保存一次性授权码哈希与 PKCE challenge；`airefreshtoken` 保存轮换 Token 哈希、family、替代关系、使用和撤销时间。所有凭证只保存哈希，不保存可复用明文。
+
+### aioperation
+AI 写工具的原子幂等记录表。
+
+| 字段 | 类型 | 可空 | 说明 |
+|------|------|------|------|
+| id | UUID | 否 | 主键 |
+| connection_id | UUID | 否 | 关联 AI Connection |
+| tool_name | varchar(100) | 否 | MCP 工具名 |
+| idempotency_key | varchar(100) | 否 | 客户端幂等键，与连接、工具组成唯一约束 |
+| request_hash | varchar(255) | 否 | 规范化请求哈希 |
+| resource_type | varchar(50) | 否 | transaction / budget / category |
+| resource_id | UUID | 是 | 业务资源 ID |
+| result_payload | jsonb | 否 | 安全重放所需结果摘要 |
+| expires_at | timestamptz | 否 | 至少 30 天保留截止时间 |
+| created_at | timestamptz | 否 | 创建时间 |
 
 ### datajob
 系统级数据导入导出任务表。
@@ -178,7 +201,7 @@ Agent HMAC 请求的防重放记录表。
 - 交易：`TransactionCreate`、`TransactionUpdate`、`TransactionPublic`、`TransactionBatchEnter`
 - 经手人候选：`HandlerUserOption`、`HandlerUsersPublic`
 - 看板：`DashboardSummary`、`DashboardTrendPoint`、`DashboardCategoryShare`、`DashboardBudgetUsage`、`DashboardPublic`
-- API Token：`ApiTokenCreate`、`ApiTokenPublic`、`ApiTokenSecretPublic`
+- AI Connector：`AIConnectionPublic`、`AIConnectionsPublic` 以及 MCP 工具输入/确认模型
 - 数据任务：`DataJobPublic`、`DataJobsPublic`
 
 ## DTO 补充说明

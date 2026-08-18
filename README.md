@@ -1,6 +1,6 @@
 # HomeFin
 
-HomeFin 是一个面向个人和家庭场景的全栈财务管理系统，提供记账、预算、分类管理、财务概览，以及面向外部自动化流程的 Agent API。项目基于 FastAPI + React 构建，适合继续作为一个可迭代的业务型开源项目演进。
+HomeFin 是一个面向个人和家庭场景的全栈财务管理系统，提供记账、预算、分类管理、财务概览，以及面向 AI Agent 的 MCP Connector。项目基于 FastAPI + React 构建，适合继续作为一个可迭代的业务型开源项目演进。
 
 ![HomeFin preview](img/github-social-preview.png)
 
@@ -9,9 +9,9 @@ HomeFin 是一个面向个人和家庭场景的全栈财务管理系统，提供
 - 用户认证与账户体系：支持 `login_name` 登录、密码找回、用户自助设置，以及可选 MFA。
 - 财务核心能力：支持分类、预算、交易 CRUD，交易支持摘要 `summary` 与结构化详情 `detail`。
 - 首页看板：提供收入、支出、结余、趋势、分类占比和预算使用情况。
-- 管理能力：支持管理员用户管理、API Token 管理、MFA 重置。
+- 管理能力：支持管理员用户管理、AI Connection 管理、MFA 重置。
 - 数据交换：支持 Excel 模板导入导出、后台数据任务、结果文件与错误明细追踪。
-- Agent API：支持外部系统通过 Token 访问分类、预算、交易等能力。
+- AI Connector：支持外部 Agent 通过 MCP、OAuth/CIMD 和服务端两阶段确认访问分类、预算、交易等能力。
 - 工程化基础：提供 Docker Compose、本地开发热更新、OpenAPI Client 生成、Pytest 和 Playwright 测试。
 
 ## Tech Stack
@@ -107,8 +107,7 @@ bun run test
 
 ```bash
 cd backend
-source .venv/bin/activate
-pytest
+uv run bash scripts/tests-start.sh
 ```
 
 ### Full stack verification
@@ -140,6 +139,7 @@ HomeFin/
 - Engineering conventions: [docs/development-guide.md](docs/development-guide.md)
 - Intranet deployment: [docs/intranet-production-validation-deployment.md](docs/intranet-production-validation-deployment.md)
 - Product context: [context/readme.md](context/readme.md)
+- HomeFin MCP / AI Agent integration: [context/modules/ai-connector/agent-integration-guide.md](context/modules/ai-connector/agent-integration-guide.md)
 
 ## Current Scope
 
@@ -147,7 +147,7 @@ The current repository focuses on:
 
 - household finance management
 - role-based admin and user settings flows
-- API token and Agent integration scenarios
+- MCP / OAuth AI Agent integration scenarios
 - structured transaction data and import/export workflows
 
 The product flow is centered on categories, budgets, transactions, dashboard, system management, and agent-facing APIs.

@@ -45,12 +45,16 @@ def _validate_parent(
         current_id = parent.parent_id
 
 
-def _commit(session: Session, category: Category) -> None:
+def _persist(session: Session, category: Category, *, commit: bool) -> None:
     try:
         session.add(category)
-        session.commit()
+        if commit:
+            session.commit()
+        else:
+            session.flush()
     except IntegrityError:
-        session.rollback()
+        if commit:
+            session.rollback()
         raise HTTPException(status_code=409, detail="Category name already exists")
 
 
@@ -84,7 +88,11 @@ def list_categories(
 
 
 def create_category(
-    session: Session, *, owner_id: uuid.UUID, category_in: CategoryCreate
+    session: Session,
+    *,
+    owner_id: uuid.UUID,
+    category_in: CategoryCreate,
+    commit: bool = True,
 ) -> CategoryPublic:
     _validate_color(category_in.color)
     _validate_parent(
@@ -101,7 +109,7 @@ def create_category(
     if existing:
         raise HTTPException(status_code=409, detail="Category name already exists")
     category = Category.model_validate(category_in, update={"owner_id": owner_id})
-    _commit(session, category)
+    _persist(session, category, commit=commit)
     session.refresh(category)
     return CategoryPublic.model_validate(category)
 
@@ -112,6 +120,7 @@ def update_category(
     owner_id: uuid.UUID,
     category_id: uuid.UUID,
     category_in: CategoryUpdate,
+    commit: bool = True,
 ) -> CategoryPublic:
     category = session.get(Category, category_id)
     if not category or category.owner_id != owner_id:
@@ -136,13 +145,17 @@ def update_category(
         if existing:
             raise HTTPException(status_code=409, detail="Category name already exists")
     category.sqlmodel_update(update_data)
-    _commit(session, category)
+    _persist(session, category, commit=commit)
     session.refresh(category)
     return CategoryPublic.model_validate(category)
 
 
 def delete_category(
-    session: Session, *, owner_id: uuid.UUID, category_id: uuid.UUID
+    session: Session,
+    *,
+    owner_id: uuid.UUID,
+    category_id: uuid.UUID,
+    commit: bool = True,
 ) -> Message:
     category = session.get(Category, category_id)
     if not category or category.owner_id != owner_id:
@@ -154,5 +167,8 @@ def delete_category(
     ).first():
         raise HTTPException(status_code=400, detail="Category has related transactions")
     session.delete(category)
-    session.commit()
+    if commit:
+        session.commit()
+    else:
+        session.flush()
     return Message(message="Category deleted successfully")

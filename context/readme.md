@@ -31,8 +31,7 @@ context/
     ├── budgets/
     ├── transactions/
     ├── dashboard/
-    ├── api-tokens/
-    └── agent-api/
+    └── ai-connector/
 ```
 
 ## 文件层级职责
@@ -49,5 +48,7 @@ context/
 
 ## 当前状态说明
 - `root + modules/*`：表示当前代码已实现状态。
-- `prds/v0.7/`：表示当前最新一轮移动端响应式需求设计依据。
-- `changelogs/v0.8.md`：表示当前最新的认证、Agent 调用、数据完整性与运行时安全实际交付结果。
+- `prds/v0.9/`：表示当前 MCP / AI Connector 需求与退役边界。
+- `changelogs/v0.8.md`：仍是最近已正式发布版本；v0.9 完成真实客户端验收后再补交付记录。
+
+第三方 Agent 接入 HomeFin MCP 时，使用 [`modules/ai-connector/agent-integration-guide.md`](modules/ai-connector/agent-integration-guide.md) 作为实现与验收说明。

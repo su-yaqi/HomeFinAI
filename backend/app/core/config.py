@@ -1,6 +1,7 @@
 import secrets
 import warnings
 from typing import Annotated, Any, Literal
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import (
@@ -48,6 +49,14 @@ class Settings(BaseSettings):
     DATA_JOB_RETENTION_DAYS: int = 30
     DATA_JOB_STALE_MINUTES: int = 60
     BUSINESS_TIMEZONE: str = "Asia/Shanghai"
+    MCP_RESOURCE_URL: str = "http://127.0.0.1:8000/mcp"
+    OAUTH_ISSUER_URL: str = "http://127.0.0.1:8000/"
+    AI_ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    AI_REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    AI_AUTHORIZATION_CODE_EXPIRE_MINUTES: int = 5
+    AI_CIMD_ALLOWED_HOSTS: Annotated[list[str] | str, BeforeValidator(parse_cors)] = [
+        "chatgpt.com"
+    ]
 
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
@@ -175,6 +184,33 @@ class Settings(BaseSettings):
             ZoneInfo(self.BUSINESS_TIMEZONE)
         except ZoneInfoNotFoundError as exc:
             raise ValueError("BUSINESS_TIMEZONE must be a valid IANA timezone") from exc
+
+        self.OAUTH_ISSUER_URL = self.OAUTH_ISSUER_URL.rstrip("/") + "/"
+        resource = urlsplit(self.MCP_RESOURCE_URL)
+        issuer = urlsplit(self.OAUTH_ISSUER_URL)
+        loopback_hosts = {"127.0.0.1", "::1", "localhost"}
+        for name, parsed in (
+            ("MCP_RESOURCE_URL", resource),
+            ("OAUTH_ISSUER_URL", issuer),
+        ):
+            if not parsed.scheme or not parsed.hostname:
+                raise ValueError(f"{name} must be an absolute URL")
+            if parsed.scheme != "https" and parsed.hostname not in loopback_hosts:
+                raise ValueError(f"{name} must use HTTPS outside loopback")
+            if parsed.query or parsed.fragment:
+                raise ValueError(f"{name} must not contain query or fragment")
+        if resource.path.rstrip("/") != "/mcp":
+            raise ValueError("MCP_RESOURCE_URL path must be /mcp")
+        if issuer.path not in {"", "/"}:
+            raise ValueError("OAUTH_ISSUER_URL must not contain a path")
+        if not self.AI_CIMD_ALLOWED_HOSTS:
+            raise ValueError("AI_CIMD_ALLOWED_HOSTS must not be empty")
+        if (
+            self.AI_ACCESS_TOKEN_EXPIRE_MINUTES <= 0
+            or self.AI_REFRESH_TOKEN_EXPIRE_DAYS <= 0
+            or self.AI_AUTHORIZATION_CODE_EXPIRE_MINUTES <= 0
+        ):
+            raise ValueError("AI OAuth token lifetimes must be greater than zero")
 
         return self
 

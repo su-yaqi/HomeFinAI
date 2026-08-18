@@ -18,7 +18,6 @@
 - 集合资源：`{ data: [...], count: number }`
 - 消息响应：`{ message: string }`
 - Token 响应：`{ access_token: string, token_type: "bearer" }`
-- API Token 创建响应：`{ token, secret, token_prefix }`
 - Dashboard 响应：`{ summary, trends, category_shares, budget_usage }`
 - 数据任务响应：`DataJobPublic` 或 `{ data: DataJobPublic[], count: number }`
 
@@ -37,7 +36,7 @@
 - 登录 token 的类型不匹配或认证版本过期时：后端返回 401，前端清理 token 后跳转 `/login`
 - 管理员接口：通过 `is_superuser` 控制
 - 普通用户财务资源：仅可访问自己的分类、预算、交易和 Dashboard 聚合
-- Agent 接口：通过 API Token 认证，不走普通用户 Bearer Token
+- MCP：使用独立 OAuth Access Token，绑定用户、连接、Scope、`/mcp` audience 与认证版本，不能与普通登录 Token 混用。
 
 ### 分页约定
 - 业务列表接口统一支持 `page` 与 `page_size` 查询参数。
@@ -122,16 +121,6 @@
 |--------|------|------|
 | GET | /dashboard/ | 返回财务首页聚合数据 |
 
-### api-tokens
-> 详情见 `context/modules/api-tokens/api.md`
-
-| Method | Path | 描述 |
-|--------|------|------|
-| GET | /system/api-tokens/ | 管理员分页读取 API Token 列表 |
-| POST | /system/api-tokens/ | 管理员创建 API Token |
-| POST | /system/api-tokens/{token_id}/disable | 管理员禁用 API Token |
-| DELETE | /system/api-tokens/{token_id} | 管理员彻底删除 API Token |
-
 ### data-jobs
 > 详情见 `context/modules/data-jobs/api.md`
 
@@ -144,25 +133,20 @@
 | GET | /system/data-jobs/{job_id}/result | 下载导出结果文件 |
 | GET | /system/data-jobs/{job_id}/errors | 下载导入错误明细文件 |
 
-### agent-api
-> 详情见 `context/modules/agent-api/api.md`
+### ai-connector
+> 详情见 `context/modules/ai-connector/api.md`；OAuth 与 MCP 路径不使用 `/api/v1` 前缀。
 
 | Method | Path | 描述 |
 |--------|------|------|
-| GET | /agent/handler-options | Agent 读取可选经手人列表 |
-| GET | /agent/transactions/ | Agent 分页读取所属交易列表（含 `summary` / `detail`） |
-| POST | /agent/transactions/ | Agent 创建交易 |
-| GET | /agent/transactions/{transaction_id} | Agent 获取单笔交易 |
-| PUT | /agent/transactions/{transaction_id} | Agent 更新交易 |
-| DELETE | /agent/transactions/{transaction_id} | Agent 删除交易 |
-| GET | /agent/budgets/ | Agent 分页读取所属预算列表及已使用金额 |
-| POST | /agent/budgets/ | Agent 创建预算 |
-| PUT | /agent/budgets/{budget_id} | Agent 更新预算 |
-| DELETE | /agent/budgets/{budget_id} | Agent 删除预算 |
-| GET | /agent/categories/ | Agent 分页读取所属分类列表 |
-| POST | /agent/categories/ | Agent 创建分类 |
-| PUT | /agent/categories/{category_id} | Agent 更新分类 |
-| DELETE | /agent/categories/{category_id} | Agent 删除分类 |
+| GET | /.well-known/oauth-authorization-server | OAuth/CIMD Authorization Server Metadata |
+| GET | /.well-known/oauth-protected-resource/mcp | MCP Protected Resource Metadata |
+| GET | /authorize | Authorization Code + PKCE 授权入口 |
+| POST | /token | 授权码兑换与 Refresh Token 轮换 |
+| POST | /mcp | MCP 2026-07-28 Streamable HTTP 入口 |
+| GET | /api/v1/ai-connections/ | 列出当前用户 AI 连接 |
+| GET | /api/v1/ai-connections/authorization-request | 读取签名授权请求预览 |
+| POST | /api/v1/ai-connections/authorization-request | 同意或拒绝一次性授权请求 |
+| DELETE | /api/v1/ai-connections/{connection_id} | 撤销当前用户连接 |
 
 ### shared utilities
 > 详情见 `context/modules/app-shell/api.md`

@@ -7,7 +7,6 @@ const protectedRoutes = [
   { path: "/system/categories", heading: "Categories" },
   { path: "/settings", heading: "User Settings" },
   { path: "/system/accounts", heading: "Accounts" },
-  { path: "/system/api-tokens", heading: "API Tokens" },
   { path: "/system/data-management", heading: "Data Management" },
 ]
 

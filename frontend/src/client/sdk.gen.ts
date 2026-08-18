@@ -3,40 +3,22 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { AgentBudgetsReadAgentBudgetsData, AgentBudgetsReadAgentBudgetsResponse, AgentBudgetsCreateAgentBudgetData, AgentBudgetsCreateAgentBudgetResponse, AgentBudgetsUpdateAgentBudgetData, AgentBudgetsUpdateAgentBudgetResponse, AgentBudgetsDeleteAgentBudgetData, AgentBudgetsDeleteAgentBudgetResponse, AgentCategoriesReadAgentCategoriesData, AgentCategoriesReadAgentCategoriesResponse, AgentCategoriesCreateAgentCategoryData, AgentCategoriesCreateAgentCategoryResponse, AgentCategoriesUpdateAgentCategoryData, AgentCategoriesUpdateAgentCategoryResponse, AgentCategoriesDeleteAgentCategoryData, AgentCategoriesDeleteAgentCategoryResponse, AgentTransactionsReadAgentTransactionsData, AgentTransactionsReadAgentTransactionsResponse, AgentTransactionsCreateAgentTransactionData, AgentTransactionsCreateAgentTransactionResponse, AgentTransactionsReadAgentTransactionData, AgentTransactionsReadAgentTransactionResponse, AgentTransactionsUpdateAgentTransactionData, AgentTransactionsUpdateAgentTransactionResponse, AgentTransactionsDeleteAgentTransactionData, AgentTransactionsDeleteAgentTransactionResponse, AgentTransactionsReadAgentHandlerOptionsData, AgentTransactionsReadAgentHandlerOptionsResponse, ApiTokensReadApiTokensData, ApiTokensReadApiTokensResponse, ApiTokensCreateApiTokenData, ApiTokensCreateApiTokenResponse, ApiTokensDisableApiTokenData, ApiTokensDisableApiTokenResponse, ApiTokensDeleteApiTokenData, ApiTokensDeleteApiTokenResponse, BudgetsReadBudgetsData, BudgetsReadBudgetsResponse, BudgetsCreateBudgetData, BudgetsCreateBudgetResponse, BudgetsUpdateBudgetData, BudgetsUpdateBudgetResponse, BudgetsDeleteBudgetData, BudgetsDeleteBudgetResponse, CategoriesReadCategoriesData, CategoriesReadCategoriesResponse, CategoriesCreateCategoryData, CategoriesCreateCategoryResponse, CategoriesUpdateCategoryData, CategoriesUpdateCategoryResponse, CategoriesDeleteCategoryData, CategoriesDeleteCategoryResponse, DashboardReadDashboardResponse, DataJobsReadDataJobsData, DataJobsReadDataJobsResponse, DataJobsCreateExportJobResponse, DataJobsCreateImportJobData, DataJobsCreateImportJobResponse, DataJobsDownloadTemplateResponse, DataJobsDownloadResultFileData, DataJobsDownloadResultFileResponse, DataJobsDownloadErrorFileData, DataJobsDownloadErrorFileResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginLoginData, LoginLoginResponse, LoginLogoutResponse, LoginTestTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, LoginRecoverPasswordHtmlContentData, LoginRecoverPasswordHtmlContentResponse, PrivateCreateUserData, PrivateCreateUserResponse, TransactionsReadTransactionsData, TransactionsReadTransactionsResponse, TransactionsCreateTransactionData, TransactionsCreateTransactionResponse, TransactionsReadTransactionData, TransactionsReadTransactionResponse, TransactionsUpdateTransactionData, TransactionsUpdateTransactionResponse, TransactionsDeleteTransactionData, TransactionsDeleteTransactionResponse, TransactionsBatchEnterTransactionsData, TransactionsBatchEnterTransactionsResponse, UsersReadUsersData, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadHandlerOptionsData, UsersReadHandlerOptionsResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersSetupMfaResponse, UsersEnableMfaData, UsersEnableMfaResponse, UsersResetMyMfaResponse, UsersDisableMyMfaResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersReadUserByIdData, UsersReadUserByIdResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UsersResetUserPasswordData, UsersResetUserPasswordResponse, UsersResetUserMfaData, UsersResetUserMfaResponse, UtilsTestEmailData, UtilsTestEmailResponse, UtilsHealthCheckResponse } from './types.gen';
+import type { AiConnectionsListAiConnectionsData, AiConnectionsListAiConnectionsResponse, AiConnectionsReadAuthorizationRequestData, AiConnectionsReadAuthorizationRequestResponse, AiConnectionsDecideAuthorizationRequestData, AiConnectionsDecideAuthorizationRequestResponse, AiConnectionsRevokeAiConnectionData, AiConnectionsRevokeAiConnectionResponse, BudgetsReadBudgetsData, BudgetsReadBudgetsResponse, BudgetsCreateBudgetData, BudgetsCreateBudgetResponse, BudgetsUpdateBudgetData, BudgetsUpdateBudgetResponse, BudgetsDeleteBudgetData, BudgetsDeleteBudgetResponse, CategoriesReadCategoriesData, CategoriesReadCategoriesResponse, CategoriesCreateCategoryData, CategoriesCreateCategoryResponse, CategoriesUpdateCategoryData, CategoriesUpdateCategoryResponse, CategoriesDeleteCategoryData, CategoriesDeleteCategoryResponse, DashboardReadDashboardResponse, DataJobsReadDataJobsData, DataJobsReadDataJobsResponse, DataJobsCreateExportJobResponse, DataJobsCreateImportJobData, DataJobsCreateImportJobResponse, DataJobsDownloadTemplateResponse, DataJobsDownloadResultFileData, DataJobsDownloadResultFileResponse, DataJobsDownloadErrorFileData, DataJobsDownloadErrorFileResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginLoginData, LoginLoginResponse, LoginLogoutResponse, LoginTestTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, LoginRecoverPasswordHtmlContentData, LoginRecoverPasswordHtmlContentResponse, PrivateCreateUserData, PrivateCreateUserResponse, TransactionsReadTransactionsData, TransactionsReadTransactionsResponse, TransactionsCreateTransactionData, TransactionsCreateTransactionResponse, TransactionsReadTransactionData, TransactionsReadTransactionResponse, TransactionsUpdateTransactionData, TransactionsUpdateTransactionResponse, TransactionsDeleteTransactionData, TransactionsDeleteTransactionResponse, TransactionsBatchEnterTransactionsData, TransactionsBatchEnterTransactionsResponse, UsersReadUsersData, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadHandlerOptionsData, UsersReadHandlerOptionsResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersSetupMfaResponse, UsersEnableMfaData, UsersEnableMfaResponse, UsersResetMyMfaResponse, UsersDisableMyMfaResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersReadUserByIdData, UsersReadUserByIdResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UsersResetUserPasswordData, UsersResetUserPasswordResponse, UsersResetUserMfaData, UsersResetUserMfaResponse, UtilsTestEmailData, UtilsTestEmailResponse, UtilsHealthCheckResponse } from './types.gen';
 
-export class AgentBudgetsService {
+export class AiConnectionsService {
     /**
-     * Read Agent Budgets
+     * List Ai Connections
      * @param data The data for the request.
-     * @param data.skip
-     * @param data.limit
      * @param data.page
      * @param data.pageSize
-     * @param data.authorization
-     * @param data.xApiToken
-     * @param data.xApiSecret
-     * @param data.xTimestamp
-     * @param data.xNonce
-     * @param data.xSignature
-     * @returns BudgetsPublic Successful Response
+     * @returns AIConnectionsPublic Successful Response
      * @throws ApiError
      */
-    public static readAgentBudgets(data: AgentBudgetsReadAgentBudgetsData = {}): CancelablePromise<AgentBudgetsReadAgentBudgetsResponse> {
+    public static listAiConnections(data: AiConnectionsListAiConnectionsData = {}): CancelablePromise<AiConnectionsListAiConnectionsResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/agent/budgets/',
-            headers: {
-                authorization: data.authorization,
-                'x-api-token': data.xApiToken,
-                'x-api-secret': data.xApiSecret,
-                'x-timestamp': data.xTimestamp,
-                'x-nonce': data.xNonce,
-                'x-signature': data.xSignature
-            },
+            url: '/api/v1/ai-connections/',
             query: {
-                skip: data.skip,
-                limit: data.limit,
                 page: data.page,
                 page_size: data.pageSize
             },
@@ -47,144 +29,18 @@ export class AgentBudgetsService {
     }
 
     /**
-     * Create Agent Budget
+     * Read Authorization Request
      * @param data The data for the request.
-     * @param data.requestBody
-     * @param data.authorization
-     * @param data.xApiToken
-     * @param data.xApiSecret
-     * @param data.xTimestamp
-     * @param data.xNonce
-     * @param data.xSignature
-     * @returns BudgetPublic Successful Response
+     * @param data.request
+     * @returns unknown Successful Response
      * @throws ApiError
      */
-    public static createAgentBudget(data: AgentBudgetsCreateAgentBudgetData): CancelablePromise<AgentBudgetsCreateAgentBudgetResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/agent/budgets/',
-            headers: {
-                authorization: data.authorization,
-                'x-api-token': data.xApiToken,
-                'x-api-secret': data.xApiSecret,
-                'x-timestamp': data.xTimestamp,
-                'x-nonce': data.xNonce,
-                'x-signature': data.xSignature
-            },
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-
-    /**
-     * Update Agent Budget
-     * @param data The data for the request.
-     * @param data.budgetId
-     * @param data.requestBody
-     * @param data.authorization
-     * @param data.xApiToken
-     * @param data.xApiSecret
-     * @param data.xTimestamp
-     * @param data.xNonce
-     * @param data.xSignature
-     * @returns BudgetPublic Successful Response
-     * @throws ApiError
-     */
-    public static updateAgentBudget(data: AgentBudgetsUpdateAgentBudgetData): CancelablePromise<AgentBudgetsUpdateAgentBudgetResponse> {
-        return __request(OpenAPI, {
-            method: 'PUT',
-            url: '/api/v1/agent/budgets/{budget_id}',
-            path: {
-                budget_id: data.budgetId
-            },
-            headers: {
-                authorization: data.authorization,
-                'x-api-token': data.xApiToken,
-                'x-api-secret': data.xApiSecret,
-                'x-timestamp': data.xTimestamp,
-                'x-nonce': data.xNonce,
-                'x-signature': data.xSignature
-            },
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-
-    /**
-     * Delete Agent Budget
-     * @param data The data for the request.
-     * @param data.budgetId
-     * @param data.authorization
-     * @param data.xApiToken
-     * @param data.xApiSecret
-     * @param data.xTimestamp
-     * @param data.xNonce
-     * @param data.xSignature
-     * @returns Message Successful Response
-     * @throws ApiError
-     */
-    public static deleteAgentBudget(data: AgentBudgetsDeleteAgentBudgetData): CancelablePromise<AgentBudgetsDeleteAgentBudgetResponse> {
-        return __request(OpenAPI, {
-            method: 'DELETE',
-            url: '/api/v1/agent/budgets/{budget_id}',
-            path: {
-                budget_id: data.budgetId
-            },
-            headers: {
-                authorization: data.authorization,
-                'x-api-token': data.xApiToken,
-                'x-api-secret': data.xApiSecret,
-                'x-timestamp': data.xTimestamp,
-                'x-nonce': data.xNonce,
-                'x-signature': data.xSignature
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-}
-
-export class AgentCategoriesService {
-    /**
-     * Read Agent Categories
-     * @param data The data for the request.
-     * @param data.skip
-     * @param data.limit
-     * @param data.page
-     * @param data.pageSize
-     * @param data.authorization
-     * @param data.xApiToken
-     * @param data.xApiSecret
-     * @param data.xTimestamp
-     * @param data.xNonce
-     * @param data.xSignature
-     * @returns CategoriesPublic Successful Response
-     * @throws ApiError
-     */
-    public static readAgentCategories(data: AgentCategoriesReadAgentCategoriesData = {}): CancelablePromise<AgentCategoriesReadAgentCategoriesResponse> {
+    public static readAuthorizationRequest(data: AiConnectionsReadAuthorizationRequestData): CancelablePromise<AiConnectionsReadAuthorizationRequestResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/agent/categories/',
-            headers: {
-                authorization: data.authorization,
-                'x-api-token': data.xApiToken,
-                'x-api-secret': data.xApiSecret,
-                'x-timestamp': data.xTimestamp,
-                'x-nonce': data.xNonce,
-                'x-signature': data.xSignature
-            },
+            url: '/api/v1/ai-connections/authorization-request',
             query: {
-                skip: data.skip,
-                limit: data.limit,
-                page: data.page,
-                page_size: data.pageSize
+                request: data.request
             },
             errors: {
                 422: 'Validation Error'
@@ -193,30 +49,16 @@ export class AgentCategoriesService {
     }
 
     /**
-     * Create Agent Category
+     * Decide Authorization Request
      * @param data The data for the request.
      * @param data.requestBody
-     * @param data.authorization
-     * @param data.xApiToken
-     * @param data.xApiSecret
-     * @param data.xTimestamp
-     * @param data.xNonce
-     * @param data.xSignature
-     * @returns CategoryPublic Successful Response
+     * @returns string Successful Response
      * @throws ApiError
      */
-    public static createAgentCategory(data: AgentCategoriesCreateAgentCategoryData): CancelablePromise<AgentCategoriesCreateAgentCategoryResponse> {
+    public static decideAuthorizationRequest(data: AiConnectionsDecideAuthorizationRequestData): CancelablePromise<AiConnectionsDecideAuthorizationRequestResponse> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/v1/agent/categories/',
-            headers: {
-                authorization: data.authorization,
-                'x-api-token': data.xApiToken,
-                'x-api-secret': data.xApiSecret,
-                'x-timestamp': data.xTimestamp,
-                'x-nonce': data.xNonce,
-                'x-signature': data.xSignature
-            },
+            url: '/api/v1/ai-connections/authorization-request',
             body: data.requestBody,
             mediaType: 'application/json',
             errors: {
@@ -226,356 +68,18 @@ export class AgentCategoriesService {
     }
 
     /**
-     * Update Agent Category
+     * Revoke Ai Connection
      * @param data The data for the request.
-     * @param data.categoryId
-     * @param data.requestBody
-     * @param data.authorization
-     * @param data.xApiToken
-     * @param data.xApiSecret
-     * @param data.xTimestamp
-     * @param data.xNonce
-     * @param data.xSignature
-     * @returns CategoryPublic Successful Response
-     * @throws ApiError
-     */
-    public static updateAgentCategory(data: AgentCategoriesUpdateAgentCategoryData): CancelablePromise<AgentCategoriesUpdateAgentCategoryResponse> {
-        return __request(OpenAPI, {
-            method: 'PUT',
-            url: '/api/v1/agent/categories/{category_id}',
-            path: {
-                category_id: data.categoryId
-            },
-            headers: {
-                authorization: data.authorization,
-                'x-api-token': data.xApiToken,
-                'x-api-secret': data.xApiSecret,
-                'x-timestamp': data.xTimestamp,
-                'x-nonce': data.xNonce,
-                'x-signature': data.xSignature
-            },
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-
-    /**
-     * Delete Agent Category
-     * @param data The data for the request.
-     * @param data.categoryId
-     * @param data.authorization
-     * @param data.xApiToken
-     * @param data.xApiSecret
-     * @param data.xTimestamp
-     * @param data.xNonce
-     * @param data.xSignature
+     * @param data.connectionId
      * @returns Message Successful Response
      * @throws ApiError
      */
-    public static deleteAgentCategory(data: AgentCategoriesDeleteAgentCategoryData): CancelablePromise<AgentCategoriesDeleteAgentCategoryResponse> {
+    public static revokeAiConnection(data: AiConnectionsRevokeAiConnectionData): CancelablePromise<AiConnectionsRevokeAiConnectionResponse> {
         return __request(OpenAPI, {
             method: 'DELETE',
-            url: '/api/v1/agent/categories/{category_id}',
+            url: '/api/v1/ai-connections/{connection_id}',
             path: {
-                category_id: data.categoryId
-            },
-            headers: {
-                authorization: data.authorization,
-                'x-api-token': data.xApiToken,
-                'x-api-secret': data.xApiSecret,
-                'x-timestamp': data.xTimestamp,
-                'x-nonce': data.xNonce,
-                'x-signature': data.xSignature
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-}
-
-export class AgentTransactionsService {
-    /**
-     * Read Agent Transactions
-     * @param data The data for the request.
-     * @param data.authorization
-     * @param data.xApiToken
-     * @param data.xApiSecret
-     * @param data.xTimestamp
-     * @param data.xNonce
-     * @param data.xSignature
-     * @returns TransactionsPublic Successful Response
-     * @throws ApiError
-     */
-    public static readAgentTransactions(data: AgentTransactionsReadAgentTransactionsData = {}): CancelablePromise<AgentTransactionsReadAgentTransactionsResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/agent/transactions/',
-            headers: {
-                authorization: data.authorization,
-                'x-api-token': data.xApiToken,
-                'x-api-secret': data.xApiSecret,
-                'x-timestamp': data.xTimestamp,
-                'x-nonce': data.xNonce,
-                'x-signature': data.xSignature
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-
-    /**
-     * Create Agent Transaction
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @param data.authorization
-     * @param data.xApiToken
-     * @param data.xApiSecret
-     * @param data.xTimestamp
-     * @param data.xNonce
-     * @param data.xSignature
-     * @returns TransactionPublic Successful Response
-     * @throws ApiError
-     */
-    public static createAgentTransaction(data: AgentTransactionsCreateAgentTransactionData): CancelablePromise<AgentTransactionsCreateAgentTransactionResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/agent/transactions/',
-            headers: {
-                authorization: data.authorization,
-                'x-api-token': data.xApiToken,
-                'x-api-secret': data.xApiSecret,
-                'x-timestamp': data.xTimestamp,
-                'x-nonce': data.xNonce,
-                'x-signature': data.xSignature
-            },
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-
-    /**
-     * Read Agent Transaction
-     * @param data The data for the request.
-     * @param data.transactionId
-     * @param data.authorization
-     * @param data.xApiToken
-     * @param data.xApiSecret
-     * @param data.xTimestamp
-     * @param data.xNonce
-     * @param data.xSignature
-     * @returns TransactionPublic Successful Response
-     * @throws ApiError
-     */
-    public static readAgentTransaction(data: AgentTransactionsReadAgentTransactionData): CancelablePromise<AgentTransactionsReadAgentTransactionResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/agent/transactions/{transaction_id}',
-            path: {
-                transaction_id: data.transactionId
-            },
-            headers: {
-                authorization: data.authorization,
-                'x-api-token': data.xApiToken,
-                'x-api-secret': data.xApiSecret,
-                'x-timestamp': data.xTimestamp,
-                'x-nonce': data.xNonce,
-                'x-signature': data.xSignature
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-
-    /**
-     * Update Agent Transaction
-     * @param data The data for the request.
-     * @param data.transactionId
-     * @param data.requestBody
-     * @param data.authorization
-     * @param data.xApiToken
-     * @param data.xApiSecret
-     * @param data.xTimestamp
-     * @param data.xNonce
-     * @param data.xSignature
-     * @returns TransactionPublic Successful Response
-     * @throws ApiError
-     */
-    public static updateAgentTransaction(data: AgentTransactionsUpdateAgentTransactionData): CancelablePromise<AgentTransactionsUpdateAgentTransactionResponse> {
-        return __request(OpenAPI, {
-            method: 'PUT',
-            url: '/api/v1/agent/transactions/{transaction_id}',
-            path: {
-                transaction_id: data.transactionId
-            },
-            headers: {
-                authorization: data.authorization,
-                'x-api-token': data.xApiToken,
-                'x-api-secret': data.xApiSecret,
-                'x-timestamp': data.xTimestamp,
-                'x-nonce': data.xNonce,
-                'x-signature': data.xSignature
-            },
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-
-    /**
-     * Delete Agent Transaction
-     * @param data The data for the request.
-     * @param data.transactionId
-     * @param data.authorization
-     * @param data.xApiToken
-     * @param data.xApiSecret
-     * @param data.xTimestamp
-     * @param data.xNonce
-     * @param data.xSignature
-     * @returns Message Successful Response
-     * @throws ApiError
-     */
-    public static deleteAgentTransaction(data: AgentTransactionsDeleteAgentTransactionData): CancelablePromise<AgentTransactionsDeleteAgentTransactionResponse> {
-        return __request(OpenAPI, {
-            method: 'DELETE',
-            url: '/api/v1/agent/transactions/{transaction_id}',
-            path: {
-                transaction_id: data.transactionId
-            },
-            headers: {
-                authorization: data.authorization,
-                'x-api-token': data.xApiToken,
-                'x-api-secret': data.xApiSecret,
-                'x-timestamp': data.xTimestamp,
-                'x-nonce': data.xNonce,
-                'x-signature': data.xSignature
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-
-    /**
-     * Read Agent Handler Options
-     * @param data The data for the request.
-     * @param data.authorization
-     * @param data.xApiToken
-     * @param data.xApiSecret
-     * @param data.xTimestamp
-     * @param data.xNonce
-     * @param data.xSignature
-     * @returns HandlerUsersPublic Successful Response
-     * @throws ApiError
-     */
-    public static readAgentHandlerOptions(data: AgentTransactionsReadAgentHandlerOptionsData = {}): CancelablePromise<AgentTransactionsReadAgentHandlerOptionsResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/agent/handler-options',
-            headers: {
-                authorization: data.authorization,
-                'x-api-token': data.xApiToken,
-                'x-api-secret': data.xApiSecret,
-                'x-timestamp': data.xTimestamp,
-                'x-nonce': data.xNonce,
-                'x-signature': data.xSignature
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-}
-
-export class ApiTokensService {
-    /**
-     * Read Api Tokens
-     * @param data The data for the request.
-     * @param data.skip
-     * @param data.limit
-     * @param data.page
-     * @param data.pageSize
-     * @returns ApiTokensPublic Successful Response
-     * @throws ApiError
-     */
-    public static readApiTokens(data: ApiTokensReadApiTokensData = {}): CancelablePromise<ApiTokensReadApiTokensResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/system/api-tokens/',
-            query: {
-                skip: data.skip,
-                limit: data.limit,
-                page: data.page,
-                page_size: data.pageSize
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-
-    /**
-     * Create Api Token
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns ApiTokenSecretPublic Successful Response
-     * @throws ApiError
-     */
-    public static createApiToken(data: ApiTokensCreateApiTokenData): CancelablePromise<ApiTokensCreateApiTokenResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/system/api-tokens/',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-
-    /**
-     * Disable Api Token
-     * @param data The data for the request.
-     * @param data.tokenId
-     * @returns Message Successful Response
-     * @throws ApiError
-     */
-    public static disableApiToken(data: ApiTokensDisableApiTokenData): CancelablePromise<ApiTokensDisableApiTokenResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/system/api-tokens/{token_id}/disable',
-            path: {
-                token_id: data.tokenId
-            },
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-
-    /**
-     * Delete Api Token
-     * @param data The data for the request.
-     * @param data.tokenId
-     * @returns Message Successful Response
-     * @throws ApiError
-     */
-    public static deleteApiToken(data: ApiTokensDeleteApiTokenData): CancelablePromise<ApiTokensDeleteApiTokenResponse> {
-        return __request(OpenAPI, {
-            method: 'DELETE',
-            url: '/api/v1/system/api-tokens/{token_id}',
-            path: {
-                token_id: data.tokenId
+                connection_id: data.connectionId
             },
             errors: {
                 422: 'Validation Error'

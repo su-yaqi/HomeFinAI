@@ -34,17 +34,20 @@ def list_budgets(
     limit: int = 100,
     page: int | None = None,
     page_size: int | None = None,
+    year: int | None = None,
 ) -> BudgetsPublic:
     offset, max_results = resolve_pagination(
         page=page, page_size=page_size, skip=skip, limit=limit
     )
-    condition = Budget.owner_id == owner_id
+    conditions = [Budget.owner_id == owner_id]
+    if year is not None:
+        conditions.append(Budget.year == year)
     count = session.exec(
-        select(func.count()).select_from(Budget).where(condition)
+        select(func.count()).select_from(Budget).where(*conditions)
     ).one()
     budgets = session.exec(
         select(Budget)
-        .where(condition)
+        .where(*conditions)
         .order_by(col(Budget.year).desc(), col(Budget.created_at).desc())
         .offset(offset)
         .limit(max_results)
@@ -73,7 +76,11 @@ def list_budgets(
 
 
 def create_budget(
-    session: Session, *, owner_id: uuid.UUID, budget_in: BudgetCreate
+    session: Session,
+    *,
+    owner_id: uuid.UUID,
+    budget_in: BudgetCreate,
+    commit: bool = True,
 ) -> BudgetPublic:
     budget = Budget.model_validate(
         budget_in,
@@ -84,7 +91,10 @@ def create_budget(
         },
     )
     session.add(budget)
-    session.commit()
+    if commit:
+        session.commit()
+    else:
+        session.flush()
     session.refresh(budget)
     return _to_public(budget, 0)
 
@@ -95,6 +105,7 @@ def update_budget(
     owner_id: uuid.UUID,
     budget_id: uuid.UUID,
     budget_in: BudgetUpdate,
+    commit: bool = True,
 ) -> BudgetPublic:
     budget = session.get(Budget, budget_id)
     if not budget or budget.owner_id != owner_id:
@@ -107,7 +118,10 @@ def update_budget(
         update_data["period"] = int(period)
     budget.sqlmodel_update(update_data)
     session.add(budget)
-    session.commit()
+    if commit:
+        session.commit()
+    else:
+        session.flush()
     session.refresh(budget)
     used = session.exec(
         select(func.coalesce(func.sum(Transaction.amount_cents), 0)).where(
@@ -119,7 +133,11 @@ def update_budget(
 
 
 def delete_budget(
-    session: Session, *, owner_id: uuid.UUID, budget_id: uuid.UUID
+    session: Session,
+    *,
+    owner_id: uuid.UUID,
+    budget_id: uuid.UUID,
+    commit: bool = True,
 ) -> Message:
     budget = session.get(Budget, budget_id)
     if not budget or budget.owner_id != owner_id:
@@ -129,5 +147,8 @@ def delete_budget(
     ).first():
         raise HTTPException(status_code=400, detail="Budget has related transactions")
     session.delete(budget)
-    session.commit()
+    if commit:
+        session.commit()
+    else:
+        session.flush()
     return Message(message="Budget deleted successfully")

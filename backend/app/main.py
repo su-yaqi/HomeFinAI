@@ -9,6 +9,8 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import Response
 
+from app.ai_connector.http import authorize, oauth_metadata, token
+from app.ai_connector.server import mcp_app
 from app.api.main import api_router
 from app.core.config import settings
 from app.data_jobs import cleanup_expired_data_jobs, recover_interrupted_data_jobs
@@ -26,7 +28,12 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
             return await call_next(request)
 
-        if request.url.path == f"{settings.API_V1_STR}/login":
+        if request.url.path in {
+            f"{settings.API_V1_STR}/login",
+            "/authorize",
+            "/token",
+            "/mcp",
+        }:
             return await call_next(request)
 
         session_token = request.cookies.get(settings.SESSION_COOKIE_NAME)
@@ -56,7 +63,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         logger.warning("Marked %s interrupted data jobs as failed", interrupted)
     if expired:
         logger.info("Removed %s expired data jobs", expired)
-    yield
+    async with mcp_app.lifespan():
+        yield
 
 
 app = FastAPI(
@@ -78,3 +86,11 @@ if settings.all_cors_origins:
 
 app.add_middleware(CSRFMiddleware)
 app.include_router(api_router, prefix=settings.API_V1_STR)
+app.add_route(
+    "/.well-known/oauth-authorization-server",
+    oauth_metadata,
+    methods=["GET"],
+)
+app.add_route("/authorize", authorize, methods=["GET", "POST"])
+app.add_route("/token", token, methods=["POST"])
+app.mount("/", mcp_app)

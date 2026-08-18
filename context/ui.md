@@ -24,9 +24,9 @@
 ├── /budgets                   # 预算管理页
 ├── /system/categories         # 分类管理页
 ├── /system/accounts           # 账户管理页（管理员）
-├── /system/api-tokens         # API Token 管理页（管理员）
 ├── /system/data-management    # 数据导入导出页（管理员）
 ├── /settings                  # 用户设置页
+├── /connect/authorize         # AI 客户端 OAuth 授权确认页
 └── /admin                     # 兼容路由，当前跳转 /system/accounts
 ```
 
@@ -38,7 +38,6 @@
 | Budgets | /budgets | 所有已登录用户 |
 | Categories | /system/categories | 所有已登录用户 |
 | Accounts | /system/accounts | 管理员 |
-| API Tokens | /system/api-tokens | 管理员 |
 | Data Management | /system/data-management | 管理员 |
 | Settings | /settings | 所有已登录用户 |
 
@@ -58,11 +57,12 @@
 - `/_layout` 及其子路由为受保护区域，未登录会重定向到 `/login`。
 - 前端登录态基于 `localStorage.access_token` 判断，不依赖 Cookie Session。
 - React Query 全局错误处理在遇到 401/403，或 `404 User not found` 时会清理 token 并跳转登录页。
-- `/system/accounts`、`/system/api-tokens` 与 `/system/data-management` 在路由加载阶段会校验 `is_superuser`。
+- `/system/accounts` 与 `/system/data-management` 在路由加载阶段会校验 `is_superuser`。
+- `/connect/authorize` 要求登录，并只显示服务端签名授权请求中的客户端与 Scope；Settings 的 AI Connections 页签只展示当前用户连接。
 - `/signup`、`/admin` 目前仅作为兼容入口，不再是主导航路径。
 
 ## 响应式页面约定
 - 断点以 Tailwind `md` 为桌面表格与移动卡片的主要切换点；移动端内容保持单列，页面级操作允许占满可用宽度。
-- 交易、预算、分类、账户、API Token 与数据任务列表在移动端显示语义化卡片；同一数据源和业务操作在桌面端继续使用表格。
+- 交易、预算、分类、账户与数据任务列表在移动端显示语义化卡片；同一数据源和业务操作在桌面端继续使用表格。
 - 交易筛选器在移动端默认折叠并显示已启用条件数量；批量操作栏固定在可见区域底部，仍只作用于当前页选中项。
 - 认证页、设置页 Tab 和所有长表单在窄屏下使用安全边距与纵向布局；弹窗内部滚动，不推动页面产生横向溢出。

@@ -21,8 +21,8 @@ import { Route as LayoutBudgetsRouteImport } from './routes/_layout/budgets'
 import { Route as LayoutAdminRouteImport } from './routes/_layout/admin'
 import { Route as LayoutSystemDataManagementRouteImport } from './routes/_layout/system.data-management'
 import { Route as LayoutSystemCategoriesRouteImport } from './routes/_layout/system.categories'
-import { Route as LayoutSystemApiTokensRouteImport } from './routes/_layout/system.api-tokens'
 import { Route as LayoutSystemAccountsRouteImport } from './routes/_layout/system.accounts'
+import { Route as LayoutConnectAuthorizeRouteImport } from './routes/_layout/connect.authorize'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -84,14 +84,14 @@ const LayoutSystemCategoriesRoute = LayoutSystemCategoriesRouteImport.update({
   path: '/system/categories',
   getParentRoute: () => LayoutRoute,
 } as any)
-const LayoutSystemApiTokensRoute = LayoutSystemApiTokensRouteImport.update({
-  id: '/system/api-tokens',
-  path: '/system/api-tokens',
-  getParentRoute: () => LayoutRoute,
-} as any)
 const LayoutSystemAccountsRoute = LayoutSystemAccountsRouteImport.update({
   id: '/system/accounts',
   path: '/system/accounts',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutConnectAuthorizeRoute = LayoutConnectAuthorizeRouteImport.update({
+  id: '/connect/authorize',
+  path: '/connect/authorize',
   getParentRoute: () => LayoutRoute,
 } as any)
 
@@ -105,8 +105,8 @@ export interface FileRoutesByFullPath {
   '/budgets': typeof LayoutBudgetsRoute
   '/settings': typeof LayoutSettingsRoute
   '/transactions': typeof LayoutTransactionsRoute
+  '/connect/authorize': typeof LayoutConnectAuthorizeRoute
   '/system/accounts': typeof LayoutSystemAccountsRoute
-  '/system/api-tokens': typeof LayoutSystemApiTokensRoute
   '/system/categories': typeof LayoutSystemCategoriesRoute
   '/system/data-management': typeof LayoutSystemDataManagementRoute
 }
@@ -120,8 +120,8 @@ export interface FileRoutesByTo {
   '/settings': typeof LayoutSettingsRoute
   '/transactions': typeof LayoutTransactionsRoute
   '/': typeof LayoutIndexRoute
+  '/connect/authorize': typeof LayoutConnectAuthorizeRoute
   '/system/accounts': typeof LayoutSystemAccountsRoute
-  '/system/api-tokens': typeof LayoutSystemApiTokensRoute
   '/system/categories': typeof LayoutSystemCategoriesRoute
   '/system/data-management': typeof LayoutSystemDataManagementRoute
 }
@@ -137,8 +137,8 @@ export interface FileRoutesById {
   '/_layout/settings': typeof LayoutSettingsRoute
   '/_layout/transactions': typeof LayoutTransactionsRoute
   '/_layout/': typeof LayoutIndexRoute
+  '/_layout/connect/authorize': typeof LayoutConnectAuthorizeRoute
   '/_layout/system/accounts': typeof LayoutSystemAccountsRoute
-  '/_layout/system/api-tokens': typeof LayoutSystemApiTokensRoute
   '/_layout/system/categories': typeof LayoutSystemCategoriesRoute
   '/_layout/system/data-management': typeof LayoutSystemDataManagementRoute
 }
@@ -154,8 +154,8 @@ export interface FileRouteTypes {
     | '/budgets'
     | '/settings'
     | '/transactions'
+    | '/connect/authorize'
     | '/system/accounts'
-    | '/system/api-tokens'
     | '/system/categories'
     | '/system/data-management'
   fileRoutesByTo: FileRoutesByTo
@@ -169,8 +169,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/transactions'
     | '/'
+    | '/connect/authorize'
     | '/system/accounts'
-    | '/system/api-tokens'
     | '/system/categories'
     | '/system/data-management'
   id:
@@ -185,8 +185,8 @@ export interface FileRouteTypes {
     | '/_layout/settings'
     | '/_layout/transactions'
     | '/_layout/'
+    | '/_layout/connect/authorize'
     | '/_layout/system/accounts'
-    | '/_layout/system/api-tokens'
     | '/_layout/system/categories'
     | '/_layout/system/data-management'
   fileRoutesById: FileRoutesById
@@ -285,18 +285,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutSystemCategoriesRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/system/api-tokens': {
-      id: '/_layout/system/api-tokens'
-      path: '/system/api-tokens'
-      fullPath: '/system/api-tokens'
-      preLoaderRoute: typeof LayoutSystemApiTokensRouteImport
-      parentRoute: typeof LayoutRoute
-    }
     '/_layout/system/accounts': {
       id: '/_layout/system/accounts'
       path: '/system/accounts'
       fullPath: '/system/accounts'
       preLoaderRoute: typeof LayoutSystemAccountsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/connect/authorize': {
+      id: '/_layout/connect/authorize'
+      path: '/connect/authorize'
+      fullPath: '/connect/authorize'
+      preLoaderRoute: typeof LayoutConnectAuthorizeRouteImport
       parentRoute: typeof LayoutRoute
     }
   }
@@ -308,8 +308,8 @@ interface LayoutRouteChildren {
   LayoutSettingsRoute: typeof LayoutSettingsRoute
   LayoutTransactionsRoute: typeof LayoutTransactionsRoute
   LayoutIndexRoute: typeof LayoutIndexRoute
+  LayoutConnectAuthorizeRoute: typeof LayoutConnectAuthorizeRoute
   LayoutSystemAccountsRoute: typeof LayoutSystemAccountsRoute
-  LayoutSystemApiTokensRoute: typeof LayoutSystemApiTokensRoute
   LayoutSystemCategoriesRoute: typeof LayoutSystemCategoriesRoute
   LayoutSystemDataManagementRoute: typeof LayoutSystemDataManagementRoute
 }
@@ -320,8 +320,8 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutSettingsRoute: LayoutSettingsRoute,
   LayoutTransactionsRoute: LayoutTransactionsRoute,
   LayoutIndexRoute: LayoutIndexRoute,
+  LayoutConnectAuthorizeRoute: LayoutConnectAuthorizeRoute,
   LayoutSystemAccountsRoute: LayoutSystemAccountsRoute,
-  LayoutSystemApiTokensRoute: LayoutSystemApiTokensRoute,
   LayoutSystemCategoriesRoute: LayoutSystemCategoriesRoute,
   LayoutSystemDataManagementRoute: LayoutSystemDataManagementRoute,
 }

@@ -12,7 +12,7 @@
 ### 导航生成
 1. 当前用户信息加载完成后，侧边栏根据 `is_superuser` 生成导航项。
 2. 普通用户看到 `Dashboard / Transactions / Budgets / Categories`。
-3. 管理员额外看到 `Accounts / API Tokens / Data Management`。
+3. 管理员额外看到 `Accounts / Data Management`；AI Connections 位于所有用户自己的 Settings 中。
 
 ### 主题切换
 1. 用户点击主题切换入口。

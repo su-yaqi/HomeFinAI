@@ -11,8 +11,9 @@ import { isLoggedIn } from "@/hooks/useAuth"
 
 export const Route = createFileRoute("/_layout")({
   component: Layout,
-  beforeLoad: async () => {
+  beforeLoad: async ({ location }) => {
     if (!isLoggedIn()) {
+      sessionStorage.setItem("post_login_redirect", location.href)
       throw redirect({
         to: "/login",
       })

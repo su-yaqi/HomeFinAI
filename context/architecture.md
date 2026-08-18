@@ -6,10 +6,10 @@
 1. 前端展示层：`frontend/src/routes` 负责页面入口、权限守卫和标题元信息。
 2. 前端功能层：`frontend/src/components` 和功能页面组件负责页面交互与表单。
 3. 前端数据访问层：`frontend/src/client` 由后端 OpenAPI 契约统一生成，前端不维护第二套手写请求封装。
-4. API 层：`backend/app/api/routes` 按业务域组织接口，数据导入导出通过管理员专用 `data-jobs` 路由暴露。
+4. API 与协议层：`backend/app/api/routes` 按业务域组织 Web API；`backend/app/ai_connector` 提供 MCP 2026-07-28、OAuth/CIMD 和工具调用。
 5. 任务与文件处理层：`backend/app/data_jobs.py` 负责 Excel 模板生成、工作簿解析、后台任务执行、错误明细导出与结果文件落盘。
 6. 领域与持久化层：`backend/app/services` 复用分类、预算和交易用例，`models.py` 维护实体、枚举和 DTO，`crud.py` 保留用户共享操作。
-7. 数据层：PostgreSQL 持久化用户、分类、预算、交易、API Token 和数据任务，Alembic 负责迁移。
+7. 数据层：PostgreSQL 持久化用户、分类、预算、交易、AI 连接/OAuth 状态、幂等操作和数据任务；废弃 Token 表只保留历史记录，Alembic 负责迁移。
 
 ## 模块划分与依赖
 ```
@@ -28,24 +28,26 @@
 [Data Jobs]    -> [Categories]
 [Data Jobs]    -> [Budgets]
 [Data Jobs]    -> [Transactions]
-[Agent API]    -> [API Tokens]
-[Agent API]    -> [Transactions]
+[MCP Connector] -> [OAuth / AI Connections]
+[MCP Tools]     -> [Domain Services]
 [Data Jobs]    -> [Persistent Job File Volume]
 ```
 
 ## 依赖边界
 - 认证统一通过 `backend/app/api/deps.py` 注入，优先读取 Session Cookie，其次读取 Bearer Token；两类 Token 使用独立类型声明并绑定用户 `auth_version`，当前前端主流程只使用 Bearer Token。
-- 用户、分类、预算、交易、API Token 和 Dashboard 数据模型都集中在 `backend/app/models.py`。
+- 用户、分类、预算、交易、AI Connection 和 Dashboard 数据模型都集中在 `backend/app/models.py`。
 - 数据导入导出任务由 `datajob` / `datajoberror` 持久化；Compose 运行时的源文件、结果文件和错误文件落到独立持久化任务卷，并按保留期限清理。
 - 交易是财务域核心写模型，分类和预算都为交易提供约束与聚合基础；当前交易主语义字段为 `summary`，并通过 `detail` JSON 承载柔性详情和明细项。
 - Dashboard 不直接写数据，只聚合分类、预算和交易结果。
 - Data Jobs 不直接改变认证模型，只允许管理员发起，并通过后台任务方式按“分类 -> 预算 -> 交易”顺序写入财务数据。
-- Agent API 不单独拥有财务实体，与用户 API 复用相同领域服务，并通过独立认证依赖解析调用主体。
+- MCP 工具不单独拥有财务实体，与用户 API 复用相同领域服务；OAuth Access Token 固定解析为授权用户和连接，写工具在同一事务内提交领域变更与幂等记录。
 - `/admin` 保留兼容路由，前端主导航使用 `/system/accounts` 与 `/system/data-management`。
 
 ## 关键架构决策
 - Bearer Token 登录主路径保留：为减少认证层改动，前端继续使用 `localStorage.access_token + Authorization: Bearer ...`。
 - Token 用途与版本隔离：Bearer、Cookie Session 和密码重置 Token 不能跨用途复用，密码变化后通过递增 `auth_version` 统一撤销旧 Token。
+- AI 接入单轨化：外部 AI 只通过 MCP + OAuth/CIMD 接入，不保留 Agent REST API、长期 API Token 或等价 Skill。
+- 服务端强制写确认：MCP 写工具先返回结构化 `input_required`，再校验加密且绑定用户、连接、工具、参数和资源指纹的短期 `confirmation_id`，并使用数据库幂等记录；不依赖服务器反向 elicitation。
 - `login_name` 成为主登录标识：后端登录入口按 `login_name` 鉴权，并在需要时兼容邮箱形式输入。
 - MFA 以可选 TOTP 方式接入：当用户存在 `mfa_secret` 时，登录需要额外提供 6 位 `mfa_code`。
 - 单一 API 契约：前端全部接口通过 OpenAPI Client 生成，避免手写类型与后端 DTO 漂移。
@@ -61,9 +63,9 @@
 ## 非功能性约束
 | 类型 | 要求 |
 |------|------|
-| 安全 | 受保护接口需登录；管理员接口以 `is_superuser` 控制；MFA 开启用户必须提供有效 6 位验证码；API Token 仅返回一次明文 |
+| 安全 | Web 受保护接口需登录；管理员接口以 `is_superuser` 控制；MFA 开启用户必须提供有效 6 位验证码；MCP 使用短期、受众绑定、可撤销的独立 OAuth Token |
 | 一致性 | 新增财务域数据均按“API 使用元金额，数据库存分”约定处理 |
 | 大数据处理 | 导入导出需按批次处理交易数据，避免一次性全量加载工作簿或整表数据 |
 | 兼容性 | `/admin` 和 `/users/signup` 暂时保留，避免旧链路直接失效 |
-| 可维护性 | 用户 API 与 Agent API 必须复用领域服务，前端只使用生成客户端 |
+| 可维护性 | Web API 与 MCP 工具必须复用领域服务，前端只使用生成客户端 |
 | 可测试性 | 后端已有认证与财务域回归测试；前端已通过构建与 lint 校验 |

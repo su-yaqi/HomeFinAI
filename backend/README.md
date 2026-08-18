@@ -109,13 +109,7 @@ If your stack is already up and you just want to run the tests, you can use:
 docker compose exec backend bash scripts/tests-start.sh
 ```
 
-That `/app/scripts/tests-start.sh` script just calls `pytest` after making sure that the rest of the stack is running. If you need to pass extra arguments to `pytest`, you can pass them to that command and they will be forwarded.
-
-For example, to stop on first error:
-
-```bash
-docker compose exec backend bash scripts/tests-start.sh -x
-```
+`tests-start.sh` creates a dedicated database whose name ends in `_test`, migrates it, runs the suite, and removes that test database on exit. The Pytest fixtures refuse to run their cleanup against any database without the `_test` suffix, so the development database is never used as a test target.
 
 ### Test Coverage
 

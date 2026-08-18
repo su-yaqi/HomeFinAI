@@ -35,4 +35,4 @@
 - 当前用户和管理员的 MFA reset 都采用清空 `mfa_secret`。
 - 管理员可直接为任意账户执行 MFA 重置。
 - 账户列表与经手人候选列表都遵守统一分页参数 `page` / `page_size`。
-- 删除账户时，其创建的 API Token 及 HMAC Nonce 会按外键级联删除。
+- 删除账户时，其财务数据、AI Connections、OAuth 凭证与历史废弃 Token 数据会按外键级联删除。

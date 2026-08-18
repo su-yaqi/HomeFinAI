@@ -13,6 +13,5 @@ frontend/dist/
 .env
 .env.local
 frontend/.env
-.homefin-agent-api.json
 __pycache__/
 *.pyc

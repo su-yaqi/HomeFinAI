@@ -12,11 +12,6 @@ const protectedRoutes = [
   { path: "/settings", heading: "User Settings" },
   { path: "/system/accounts", heading: "Accounts", hasMobileList: true },
   {
-    path: "/system/api-tokens",
-    heading: "API Tokens",
-    hasMobileList: true,
-  },
-  {
     path: "/system/data-management",
     heading: "Data Management",
     hasMobileList: true,

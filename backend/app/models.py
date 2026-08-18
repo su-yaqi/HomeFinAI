@@ -91,6 +91,9 @@ class User(UserBase, table=True):
     api_tokens: list["ApiToken"] = Relationship(
         back_populates="creator", cascade_delete=True
     )
+    ai_connections: list["AIConnection"] = Relationship(
+        back_populates="user", cascade_delete=True
+    )
 
 
 # Properties to return via API, id is always required
@@ -361,17 +364,12 @@ class TransactionBatchEnter(SQLModel):
     ids: list[uuid.UUID] = Field(min_length=1)
 
 
-class ApiTokenBase(SQLModel):
+class ApiToken(SQLModel, table=True):
+    """Deprecated v0.9 history table; no runtime authentication or CRUD entrypoint."""
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     name: str = Field(min_length=1, max_length=100)
     expires_at: datetime | None = None
-
-
-class ApiTokenCreate(ApiTokenBase):
-    generate_secret: bool = False
-
-
-class ApiToken(ApiTokenBase, table=True):
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     token_prefix: str = Field(max_length=20)
     token_hash: str = Field(max_length=255)
     secret_hash: str | None = Field(default=None, max_length=255)
@@ -390,26 +388,6 @@ class ApiToken(ApiTokenBase, table=True):
     creator: User | None = Relationship(back_populates="api_tokens")
 
 
-class ApiTokenPublic(ApiTokenBase):
-    id: uuid.UUID
-    token_prefix: str
-    is_active: bool
-    created_by: uuid.UUID
-    last_used_at: datetime | None = None
-    created_at: datetime | None = None
-
-
-class ApiTokensPublic(SQLModel):
-    data: list[ApiTokenPublic]
-    count: int
-
-
-class ApiTokenSecretPublic(SQLModel):
-    token: str
-    secret: str | None = None
-    token_prefix: str
-
-
 class ApiTokenNonce(SQLModel, table=True):
     __table_args__ = (
         UniqueConstraint("token_id", "nonce", name="uq_apitokennonce_token_nonce"),
@@ -424,6 +402,137 @@ class ApiTokenNonce(SQLModel, table=True):
         default_factory=get_datetime_utc,
         sa_type=DateTime(timezone=True),  # type: ignore
     )
+
+
+class AIConnectionStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    REVOKED = "REVOKED"
+    REAUTH_REQUIRED = "REAUTH_REQUIRED"
+
+
+class AIConnection(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    user_id: uuid.UUID = Field(
+        foreign_key="user.id", nullable=False, ondelete="CASCADE", index=True
+    )
+    client_id: str = Field(max_length=500)
+    client_name: str = Field(max_length=255)
+    scopes: list[str] = Field(sa_column=Column(JSONB, nullable=False))
+    status: str = Field(default=AIConnectionStatus.ACTIVE.value, max_length=30)
+    auth_version: int = Field(nullable=False)
+    last_used_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    revoked_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    user: User | None = Relationship(back_populates="ai_connections")
+
+
+class AIAuthorizationCode(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    connection_id: uuid.UUID = Field(
+        foreign_key="aiconnection.id", nullable=False, ondelete="CASCADE", index=True
+    )
+    code_hash: str = Field(max_length=255, unique=True, index=True)
+    redirect_uri: str = Field(max_length=1000)
+    code_challenge: str = Field(max_length=255)
+    expires_at: datetime = Field(sa_type=DateTime(timezone=True))  # type: ignore
+    used_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+
+class AIAuthorizationDecision(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    request_jti: uuid.UUID = Field(unique=True, index=True)
+    user_id: uuid.UUID = Field(
+        foreign_key="user.id", nullable=False, ondelete="CASCADE", index=True
+    )
+    approved: bool = Field(nullable=False)
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+
+class AIRefreshToken(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    connection_id: uuid.UUID = Field(
+        foreign_key="aiconnection.id", nullable=False, ondelete="CASCADE", index=True
+    )
+    token_hash: str = Field(max_length=255, unique=True, index=True)
+    family_id: uuid.UUID = Field(nullable=False, index=True)
+    replaced_by_id: uuid.UUID | None = Field(
+        default=None, foreign_key="airefreshtoken.id", ondelete="SET NULL"
+    )
+    expires_at: datetime = Field(sa_type=DateTime(timezone=True))  # type: ignore
+    used_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    revoked_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+
+class AIOperation(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint(
+            "connection_id",
+            "tool_name",
+            "idempotency_key",
+            name="uq_aioperation_connection_tool_key",
+        ),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    connection_id: uuid.UUID = Field(
+        foreign_key="aiconnection.id", nullable=False, ondelete="CASCADE", index=True
+    )
+    tool_name: str = Field(max_length=100)
+    idempotency_key: str = Field(max_length=100)
+    request_hash: str = Field(max_length=255)
+    resource_type: str = Field(max_length=50)
+    resource_id: uuid.UUID | None = Field(default=None)
+    result_payload: dict[str, Any] = Field(sa_column=Column(JSONB, nullable=False))
+    expires_at: datetime = Field(sa_type=DateTime(timezone=True))  # type: ignore
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+
+class AIConnectionPublic(SQLModel):
+    id: uuid.UUID
+    client_id: str
+    client_name: str
+    scopes: list[str]
+    status: AIConnectionStatus
+    last_used_at: datetime | None = None
+    revoked_at: datetime | None = None
+    created_at: datetime
+
+
+class AIConnectionsPublic(SQLModel):
+    data: list[AIConnectionPublic]
+    count: int
 
 
 class DataJobType(str, Enum):

@@ -1,7 +1,9 @@
 import uuid
 from datetime import date
+from typing import Any
 
 from fastapi import HTTPException
+from sqlalchemy import String, cast
 from sqlmodel import Session, col, func, select
 
 from app.models import (
@@ -25,6 +27,7 @@ def _to_public(
     transaction: Transaction, handler_user: User | None = None
 ) -> TransactionPublic:
     summary = transaction.summary or transaction.description
+    description = transaction.description or transaction.summary
     handler_display_name = transaction.handler_name or None
     if handler_user:
         handler_display_name = handler_user.full_name or handler_user.login_name
@@ -33,7 +36,7 @@ def _to_public(
             **transaction.model_dump(),
             "amount": cents_to_amount(transaction.amount_cents),
             "summary": summary,
-            "description": summary,
+            "description": description,
             "handler_display_name": handler_display_name,
         }
     )
@@ -76,10 +79,12 @@ def list_transactions(
     end_date: date | None = None,
     transaction_type: TransactionType | None = None,
     category_id: uuid.UUID | None = None,
+    budget_id: uuid.UUID | None = None,
     entry_status: EntryStatus | None = None,
     handler_user_id: uuid.UUID | None = None,
+    keyword: str | None = None,
 ) -> TransactionsPublic:
-    conditions = [Transaction.owner_id == owner_id]
+    conditions: list[Any] = [Transaction.owner_id == owner_id]
     if start_date:
         conditions.append(Transaction.transaction_date >= start_date)
     if end_date:
@@ -88,10 +93,23 @@ def list_transactions(
         conditions.append(Transaction.transaction_type == int(transaction_type))
     if category_id:
         conditions.append(Transaction.category_id == category_id)
+    if budget_id:
+        conditions.append(Transaction.budget_id == budget_id)
     if entry_status:
         conditions.append(Transaction.entry_status == int(entry_status))
     if handler_user_id:
         conditions.append(Transaction.handler_user_id == handler_user_id)
+    if keyword:
+        normalized_keyword = keyword.strip()
+        if len(normalized_keyword) > 100:
+            raise HTTPException(status_code=422, detail="Keyword is too long")
+        pattern = f"%{normalized_keyword}%"
+        detail_note = cast(col(Transaction.detail).op("->>")("note"), String)
+        conditions.append(
+            col(Transaction.summary).ilike(pattern)
+            | col(Transaction.description).ilike(pattern)
+            | detail_note.ilike(pattern)
+        )
 
     count = session.exec(
         select(func.count()).select_from(Transaction).where(*conditions)
@@ -137,7 +155,11 @@ def list_transactions(
 
 
 def create_transaction(
-    session: Session, *, owner_id: uuid.UUID, transaction_in: TransactionCreate
+    session: Session,
+    *,
+    owner_id: uuid.UUID,
+    transaction_in: TransactionCreate,
+    commit: bool = True,
 ) -> TransactionPublic:
     _validate_links(
         session,
@@ -160,7 +182,10 @@ def create_transaction(
         },
     )
     session.add(transaction)
-    session.commit()
+    if commit:
+        session.commit()
+    else:
+        session.flush()
     session.refresh(transaction)
     return _to_public(transaction, handler)
 
@@ -185,6 +210,7 @@ def update_transaction(
     owner_id: uuid.UUID,
     transaction_id: uuid.UUID,
     transaction_in: TransactionUpdate,
+    commit: bool = True,
 ) -> TransactionPublic:
     transaction = session.get(Transaction, transaction_id)
     if not transaction or transaction.owner_id != owner_id:
@@ -220,19 +246,29 @@ def update_transaction(
         )
     transaction.sqlmodel_update(update_data)
     session.add(transaction)
-    session.commit()
+    if commit:
+        session.commit()
+    else:
+        session.flush()
     session.refresh(transaction)
     return _to_public(transaction, handler)
 
 
 def delete_transaction(
-    session: Session, *, owner_id: uuid.UUID, transaction_id: uuid.UUID
+    session: Session,
+    *,
+    owner_id: uuid.UUID,
+    transaction_id: uuid.UUID,
+    commit: bool = True,
 ) -> Message:
     transaction = session.get(Transaction, transaction_id)
     if not transaction or transaction.owner_id != owner_id:
         raise HTTPException(status_code=404, detail="Transaction not found")
     session.delete(transaction)
-    session.commit()
+    if commit:
+        session.commit()
+    else:
+        session.flush()
     return Message(message="Transaction deleted successfully")
 
 

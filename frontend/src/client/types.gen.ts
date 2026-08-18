@@ -4,32 +4,27 @@ export type AdminResetPassword = {
     new_password: string;
 };
 
-export type ApiTokenCreate = {
-    name: string;
-    expires_at?: (string | null);
-    generate_secret?: boolean;
-};
-
-export type ApiTokenPublic = {
-    name: string;
-    expires_at?: (string | null);
+export type AIConnectionPublic = {
     id: string;
-    token_prefix: string;
-    is_active: boolean;
-    created_by: string;
+    client_id: string;
+    client_name: string;
+    scopes: Array<(string)>;
+    status: AIConnectionStatus;
     last_used_at?: (string | null);
-    created_at?: (string | null);
+    revoked_at?: (string | null);
+    created_at: string;
 };
 
-export type ApiTokenSecretPublic = {
-    token: string;
-    secret?: (string | null);
-    token_prefix: string;
-};
-
-export type ApiTokensPublic = {
-    data: Array<ApiTokenPublic>;
+export type AIConnectionsPublic = {
+    data: Array<AIConnectionPublic>;
     count: number;
+};
+
+export type AIConnectionStatus = 'ACTIVE' | 'REVOKED' | 'REAUTH_REQUIRED';
+
+export type Body_ai_connections_decide_authorization_request = {
+    request: string;
+    approved: boolean;
 };
 
 export type Body_data_jobs_create_import_job = {
@@ -341,207 +336,34 @@ export type ValidationError = {
     };
 };
 
-export type AgentBudgetsReadAgentBudgetsData = {
-    authorization?: (string | null);
-    limit?: number;
-    page?: (number | null);
-    pageSize?: (number | null);
-    skip?: number;
-    xApiSecret?: (string | null);
-    xApiToken?: (string | null);
-    xNonce?: (string | null);
-    xSignature?: (string | null);
-    xTimestamp?: (string | null);
+export type AiConnectionsListAiConnectionsData = {
+    page?: number;
+    pageSize?: number;
 };
 
-export type AgentBudgetsReadAgentBudgetsResponse = (BudgetsPublic);
+export type AiConnectionsListAiConnectionsResponse = (AIConnectionsPublic);
 
-export type AgentBudgetsCreateAgentBudgetData = {
-    authorization?: (string | null);
-    requestBody: BudgetCreate;
-    xApiSecret?: (string | null);
-    xApiToken?: (string | null);
-    xNonce?: (string | null);
-    xSignature?: (string | null);
-    xTimestamp?: (string | null);
+export type AiConnectionsReadAuthorizationRequestData = {
+    request: string;
 };
 
-export type AgentBudgetsCreateAgentBudgetResponse = (BudgetPublic);
+export type AiConnectionsReadAuthorizationRequestResponse = ({
+    [key: string]: unknown;
+});
 
-export type AgentBudgetsUpdateAgentBudgetData = {
-    authorization?: (string | null);
-    budgetId: string;
-    requestBody: BudgetUpdate;
-    xApiSecret?: (string | null);
-    xApiToken?: (string | null);
-    xNonce?: (string | null);
-    xSignature?: (string | null);
-    xTimestamp?: (string | null);
+export type AiConnectionsDecideAuthorizationRequestData = {
+    requestBody: Body_ai_connections_decide_authorization_request;
 };
 
-export type AgentBudgetsUpdateAgentBudgetResponse = (BudgetPublic);
+export type AiConnectionsDecideAuthorizationRequestResponse = ({
+    [key: string]: (string);
+});
 
-export type AgentBudgetsDeleteAgentBudgetData = {
-    authorization?: (string | null);
-    budgetId: string;
-    xApiSecret?: (string | null);
-    xApiToken?: (string | null);
-    xNonce?: (string | null);
-    xSignature?: (string | null);
-    xTimestamp?: (string | null);
+export type AiConnectionsRevokeAiConnectionData = {
+    connectionId: string;
 };
 
-export type AgentBudgetsDeleteAgentBudgetResponse = (Message);
-
-export type AgentCategoriesReadAgentCategoriesData = {
-    authorization?: (string | null);
-    limit?: number;
-    page?: (number | null);
-    pageSize?: (number | null);
-    skip?: number;
-    xApiSecret?: (string | null);
-    xApiToken?: (string | null);
-    xNonce?: (string | null);
-    xSignature?: (string | null);
-    xTimestamp?: (string | null);
-};
-
-export type AgentCategoriesReadAgentCategoriesResponse = (CategoriesPublic);
-
-export type AgentCategoriesCreateAgentCategoryData = {
-    authorization?: (string | null);
-    requestBody: CategoryCreate;
-    xApiSecret?: (string | null);
-    xApiToken?: (string | null);
-    xNonce?: (string | null);
-    xSignature?: (string | null);
-    xTimestamp?: (string | null);
-};
-
-export type AgentCategoriesCreateAgentCategoryResponse = (CategoryPublic);
-
-export type AgentCategoriesUpdateAgentCategoryData = {
-    authorization?: (string | null);
-    categoryId: string;
-    requestBody: CategoryUpdate;
-    xApiSecret?: (string | null);
-    xApiToken?: (string | null);
-    xNonce?: (string | null);
-    xSignature?: (string | null);
-    xTimestamp?: (string | null);
-};
-
-export type AgentCategoriesUpdateAgentCategoryResponse = (CategoryPublic);
-
-export type AgentCategoriesDeleteAgentCategoryData = {
-    authorization?: (string | null);
-    categoryId: string;
-    xApiSecret?: (string | null);
-    xApiToken?: (string | null);
-    xNonce?: (string | null);
-    xSignature?: (string | null);
-    xTimestamp?: (string | null);
-};
-
-export type AgentCategoriesDeleteAgentCategoryResponse = (Message);
-
-export type AgentTransactionsReadAgentTransactionsData = {
-    authorization?: (string | null);
-    xApiSecret?: (string | null);
-    xApiToken?: (string | null);
-    xNonce?: (string | null);
-    xSignature?: (string | null);
-    xTimestamp?: (string | null);
-};
-
-export type AgentTransactionsReadAgentTransactionsResponse = (TransactionsPublic);
-
-export type AgentTransactionsCreateAgentTransactionData = {
-    authorization?: (string | null);
-    requestBody: TransactionCreate;
-    xApiSecret?: (string | null);
-    xApiToken?: (string | null);
-    xNonce?: (string | null);
-    xSignature?: (string | null);
-    xTimestamp?: (string | null);
-};
-
-export type AgentTransactionsCreateAgentTransactionResponse = (TransactionPublic);
-
-export type AgentTransactionsReadAgentTransactionData = {
-    authorization?: (string | null);
-    transactionId: string;
-    xApiSecret?: (string | null);
-    xApiToken?: (string | null);
-    xNonce?: (string | null);
-    xSignature?: (string | null);
-    xTimestamp?: (string | null);
-};
-
-export type AgentTransactionsReadAgentTransactionResponse = (TransactionPublic);
-
-export type AgentTransactionsUpdateAgentTransactionData = {
-    authorization?: (string | null);
-    requestBody: TransactionUpdate;
-    transactionId: string;
-    xApiSecret?: (string | null);
-    xApiToken?: (string | null);
-    xNonce?: (string | null);
-    xSignature?: (string | null);
-    xTimestamp?: (string | null);
-};
-
-export type AgentTransactionsUpdateAgentTransactionResponse = (TransactionPublic);
-
-export type AgentTransactionsDeleteAgentTransactionData = {
-    authorization?: (string | null);
-    transactionId: string;
-    xApiSecret?: (string | null);
-    xApiToken?: (string | null);
-    xNonce?: (string | null);
-    xSignature?: (string | null);
-    xTimestamp?: (string | null);
-};
-
-export type AgentTransactionsDeleteAgentTransactionResponse = (Message);
-
-export type AgentTransactionsReadAgentHandlerOptionsData = {
-    authorization?: (string | null);
-    xApiSecret?: (string | null);
-    xApiToken?: (string | null);
-    xNonce?: (string | null);
-    xSignature?: (string | null);
-    xTimestamp?: (string | null);
-};
-
-export type AgentTransactionsReadAgentHandlerOptionsResponse = (HandlerUsersPublic);
-
-export type ApiTokensReadApiTokensData = {
-    limit?: number;
-    page?: (number | null);
-    pageSize?: (number | null);
-    skip?: number;
-};
-
-export type ApiTokensReadApiTokensResponse = (ApiTokensPublic);
-
-export type ApiTokensCreateApiTokenData = {
-    requestBody: ApiTokenCreate;
-};
-
-export type ApiTokensCreateApiTokenResponse = (ApiTokenSecretPublic);
-
-export type ApiTokensDisableApiTokenData = {
-    tokenId: string;
-};
-
-export type ApiTokensDisableApiTokenResponse = (Message);
-
-export type ApiTokensDeleteApiTokenData = {
-    tokenId: string;
-};
-
-export type ApiTokensDeleteApiTokenResponse = (Message);
+export type AiConnectionsRevokeAiConnectionResponse = (Message);
 
 export type BudgetsReadBudgetsData = {
     limit?: number;

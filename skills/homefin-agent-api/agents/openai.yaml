@@ -1,4 +1,0 @@
-interface:
-  display_name: "HomeFin Agent API"
-  short_description: "Call HomeFin agent transaction, budget, and category APIs"
-  default_prompt: "Use $homefin-agent-api to call HomeFin agent APIs with an API token, preferring transaction summary/detail fields for transaction writes."
