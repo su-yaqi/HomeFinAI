@@ -3,7 +3,7 @@ from datetime import date, datetime, timezone
 from enum import Enum, IntEnum
 from typing import Any, cast
 
-from pydantic import ConfigDict, EmailStr, field_validator, model_validator
+from pydantic import EmailStr, field_validator, model_validator
 from sqlalchemy import CheckConstraint, Column, DateTime, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship, SQLModel
@@ -270,8 +270,6 @@ def _normalize_transaction_summary_fields(data: object) -> object:
 
 
 class TransactionBase(SQLModel):
-    model_config = ConfigDict(extra="ignore")  # type: ignore[assignment]
-
     category_id: uuid.UUID = Field(foreign_key="category.id")
     transaction_type: TransactionType
     budget_id: uuid.UUID | None = Field(default=None, foreign_key="budget.id")
@@ -300,8 +298,6 @@ class TransactionCreate(TransactionBase):
 
 
 class TransactionUpdate(SQLModel):
-    model_config = ConfigDict(extra="ignore")  # type: ignore[assignment]
-
     category_id: uuid.UUID | None = None
     transaction_type: TransactionType | None = None
     amount: float | None = Field(default=None, gt=0)

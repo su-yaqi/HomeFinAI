@@ -29,7 +29,8 @@ context/
 │   ├── v0.9.md
 │   ├── v0.10.md
 │   ├── v0.11.md
-│   └── v0.12.md
+│   ├── v0.12.md
+│   └── v0.13.md
 └── modules/
     ├── app-shell/
     ├── auth/
@@ -60,5 +61,6 @@ context/
 - `engineering.md`：表示当前 S/M/H 风险、context impact、完成证据和分支策略。
 - `changelogs/v0.12.md`：表示当前最新的安全发布链路代码交付结果；外部 staging
   配置和验证状态以该记录中的边界为准。
+- `changelogs/v0.13.md`：记录 MCP / AI Connector 的实现、真实客户端验收和未完成的 staging 发布边界。
 
 第三方 Agent 接入 HomeFin MCP 时，使用 [`modules/ai-connector/agent-integration-guide.md`](modules/ai-connector/agent-integration-guide.md) 作为实现与验收说明。

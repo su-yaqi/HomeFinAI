@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import text
-from sqlmodel import Session
+from sqlalchemy.orm import Session
 
 from app.core.db import engine
 
@@ -78,7 +78,7 @@ def enforce_retirement_confirmation(
         raise RuntimeError(
             "Active or recently used legacy AI integrations will be permanently disabled. "
             f"Review the impact report and set {CONFIRMATION_ENV}={CONFIRMATION_VALUE} "
-            "for this deployment only to confirm the v0.9 cutover."
+            "for this deployment only to confirm the v0.13 cutover."
         )
 
 
