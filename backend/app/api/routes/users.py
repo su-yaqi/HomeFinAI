@@ -3,7 +3,7 @@ from typing import Any
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import col, delete, func, select
+from sqlmodel import col, func, select
 
 from app import crud
 from app.api.deps import (
@@ -23,7 +23,6 @@ from app.models import (
     AdminResetPassword,
     HandlerUserOption,
     HandlerUsersPublic,
-    Item,
     Message,
     MFAEnableRequest,
     MFASetupPublic,
@@ -375,8 +374,6 @@ def delete_user(
         raise HTTPException(
             status_code=403, detail="Super users are not allowed to delete themselves"
         )
-    statement = delete(Item).where(col(Item.owner_id) == user_id)
-    session.exec(statement)
     session.delete(user)
     session.commit()
     return Message(message="User deleted successfully")

@@ -1,211 +1,68 @@
 import uuid
-from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, Request
-from sqlmodel import col, func, select
+from fastapi import APIRouter
 
-from app.api.agent_auth import authenticate_agent
+from app.api.agent_auth import AgentToken
 from app.api.deps import SessionDep
-from app.api.routes.categories import (
-    _commit_category,
-    _validate_category_parent,
-    _validate_color,
-)
 from app.models import (
     CategoriesPublic,
-    Category,
     CategoryCreate,
     CategoryPublic,
     CategoryUpdate,
     Message,
-    Transaction,
 )
-from app.utils import resolve_pagination
+from app.services import categories as category_service
 
 router = APIRouter(prefix="/agent/categories", tags=["agent-categories"])
 
 
 @router.get("/", response_model=CategoriesPublic)
-async def read_agent_categories(
-    request: Request,
+def read_agent_categories(
     session: SessionDep,
+    token: AgentToken,
     skip: int = 0,
     limit: int = 100,
     page: int | None = None,
     page_size: int | None = None,
-    authorization: str | None = Header(default=None),
-    x_api_token: str | None = Header(default=None),
-    x_api_secret: str | None = Header(default=None),
-    x_timestamp: str | None = Header(default=None),
-    x_nonce: str | None = Header(default=None),
-    x_signature: str | None = Header(default=None),
-) -> Any:
-    body_text = (await request.body()).decode()
-    token = authenticate_agent(
+) -> CategoriesPublic:
+    return category_service.list_categories(
         session,
-        request,
-        body_text,
-        authorization,
-        x_api_token,
-        x_api_secret,
-        x_timestamp,
-        x_nonce,
-        x_signature,
-    )
-    offset, max_results = resolve_pagination(
-        page=page, page_size=page_size, skip=skip, limit=limit
-    )
-    count = session.exec(
-        select(func.count())
-        .select_from(Category)
-        .where(Category.owner_id == token.created_by)
-    ).one()
-    categories = session.exec(
-        select(Category)
-        .where(Category.owner_id == token.created_by)
-        .order_by(col(Category.created_at).desc())
-        .offset(offset)
-        .limit(max_results)
-    ).all()
-    return CategoriesPublic(
-        data=[CategoryPublic.model_validate(category) for category in categories],
-        count=count,
+        owner_id=token.created_by,
+        skip=skip,
+        limit=limit,
+        page=page,
+        page_size=page_size,
     )
 
 
 @router.post("/", response_model=CategoryPublic)
-async def create_agent_category(
-    request: Request,
-    category_in: CategoryCreate,
-    session: SessionDep,
-    authorization: str | None = Header(default=None),
-    x_api_token: str | None = Header(default=None),
-    x_api_secret: str | None = Header(default=None),
-    x_timestamp: str | None = Header(default=None),
-    x_nonce: str | None = Header(default=None),
-    x_signature: str | None = Header(default=None),
-) -> Any:
-    body_text = (await request.body()).decode()
-    token = authenticate_agent(
-        session,
-        request,
-        body_text,
-        authorization,
-        x_api_token,
-        x_api_secret,
-        x_timestamp,
-        x_nonce,
-        x_signature,
+def create_agent_category(
+    category_in: CategoryCreate, session: SessionDep, token: AgentToken
+) -> CategoryPublic:
+    return category_service.create_category(
+        session, owner_id=token.created_by, category_in=category_in
     )
-    _validate_color(category_in.color)
-    _validate_category_parent(
-        session,
-        owner_id=token.created_by,
-        category_id=None,
-        parent_id=category_in.parent_id,
-    )
-    statement = select(Category).where(
-        Category.owner_id == token.created_by, Category.name == category_in.name
-    )
-    if session.exec(statement).first():
-        raise HTTPException(status_code=409, detail="Category name already exists")
-    category = Category.model_validate(
-        category_in, update={"owner_id": token.created_by}
-    )
-    _commit_category(session, category)
-    session.refresh(category)
-    return category
 
 
 @router.put("/{category_id}", response_model=CategoryPublic)
-async def update_agent_category(
-    request: Request,
+def update_agent_category(
     category_id: uuid.UUID,
     category_in: CategoryUpdate,
     session: SessionDep,
-    authorization: str | None = Header(default=None),
-    x_api_token: str | None = Header(default=None),
-    x_api_secret: str | None = Header(default=None),
-    x_timestamp: str | None = Header(default=None),
-    x_nonce: str | None = Header(default=None),
-    x_signature: str | None = Header(default=None),
-) -> Any:
-    body_text = (await request.body()).decode()
-    token = authenticate_agent(
-        session,
-        request,
-        body_text,
-        authorization,
-        x_api_token,
-        x_api_secret,
-        x_timestamp,
-        x_nonce,
-        x_signature,
-    )
-    category = session.get(Category, category_id)
-    if not category or category.owner_id != token.created_by:
-        raise HTTPException(status_code=404, detail="Category not found")
-    update_data = category_in.model_dump(exclude_unset=True)
-    parent_id = update_data.get("parent_id", category.parent_id)
-    _validate_category_parent(
+    token: AgentToken,
+) -> CategoryPublic:
+    return category_service.update_category(
         session,
         owner_id=token.created_by,
-        category_id=category.id,
-        parent_id=parent_id,
+        category_id=category_id,
+        category_in=category_in,
     )
-    if "color" in update_data and update_data["color"] is not None:
-        _validate_color(update_data["color"])
-    if "name" in update_data:
-        statement = select(Category).where(
-            Category.owner_id == token.created_by,
-            Category.name == update_data["name"],
-            Category.id != category.id,
-        )
-        if session.exec(statement).first():
-            raise HTTPException(status_code=409, detail="Category name already exists")
-    category.sqlmodel_update(update_data)
-    _commit_category(session, category)
-    session.refresh(category)
-    return category
 
 
 @router.delete("/{category_id}", response_model=Message)
-async def delete_agent_category(
-    request: Request,
-    category_id: uuid.UUID,
-    session: SessionDep,
-    authorization: str | None = Header(default=None),
-    x_api_token: str | None = Header(default=None),
-    x_api_secret: str | None = Header(default=None),
-    x_timestamp: str | None = Header(default=None),
-    x_nonce: str | None = Header(default=None),
-    x_signature: str | None = Header(default=None),
-) -> Any:
-    body_text = (await request.body()).decode()
-    token = authenticate_agent(
-        session,
-        request,
-        body_text,
-        authorization,
-        x_api_token,
-        x_api_secret,
-        x_timestamp,
-        x_nonce,
-        x_signature,
+def delete_agent_category(
+    category_id: uuid.UUID, session: SessionDep, token: AgentToken
+) -> Message:
+    return category_service.delete_category(
+        session, owner_id=token.created_by, category_id=category_id
     )
-    category = session.get(Category, category_id)
-    if not category or category.owner_id != token.created_by:
-        raise HTTPException(status_code=404, detail="Category not found")
-    child = session.exec(
-        select(Category).where(Category.parent_id == category.id)
-    ).first()
-    if child:
-        raise HTTPException(status_code=400, detail="Category has child categories")
-    linked_transaction = session.exec(
-        select(Transaction).where(Transaction.category_id == category.id)
-    ).first()
-    if linked_transaction:
-        raise HTTPException(status_code=400, detail="Category has related transactions")
-    session.delete(category)
-    session.commit()
-    return Message(message="Category deleted successfully")

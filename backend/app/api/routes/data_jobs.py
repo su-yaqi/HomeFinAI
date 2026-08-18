@@ -29,6 +29,21 @@ from app.models import (
 from app.utils import resolve_pagination
 
 router = APIRouter(prefix="/system/data-jobs", tags=["data-jobs"])
+XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+class XlsxFileResponse(FileResponse):
+    media_type = XLSX_MEDIA_TYPE
+
+
+XLSX_RESPONSE: dict[int | str, dict[str, Any]] = {
+    200: {
+        "content": {
+            XLSX_MEDIA_TYPE: {"schema": {"type": "string", "format": "binary"}}
+        },
+        "description": "Excel workbook",
+    }
+}
 
 
 def _ensure_job_capacity(session: SessionDep) -> None:
@@ -152,15 +167,17 @@ async def create_import_job(
 @router.get(
     "/template",
     dependencies=[Depends(get_current_active_superuser)],
+    response_class=XlsxFileResponse,
+    responses=XLSX_RESPONSE,
 )
-def download_template() -> FileResponse:
+def download_template() -> XlsxFileResponse:
     storage_dir = ensure_job_storage_dir()
     template_path = storage_dir / f"homefin-import-template-{TEMPLATE_VERSION}.xlsx"
     if not template_path.exists():
         template_path.write_bytes(create_template_workbook_bytes())
-    return FileResponse(
+    return XlsxFileResponse(
         template_path,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        media_type=XLSX_MEDIA_TYPE,
         filename=template_path.name,
     )
 
@@ -168,17 +185,19 @@ def download_template() -> FileResponse:
 @router.get(
     "/{job_id}/result",
     dependencies=[Depends(get_current_active_superuser)],
+    response_class=XlsxFileResponse,
+    responses=XLSX_RESPONSE,
 )
-def download_result_file(session: SessionDep, job_id: uuid.UUID) -> FileResponse:
+def download_result_file(session: SessionDep, job_id: uuid.UUID) -> XlsxFileResponse:
     job = session.get(DataJob, job_id)
     if not job or not job.result_file_path:
         raise HTTPException(status_code=404, detail="Result file not found")
     file_path = Path(job.result_file_path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Result file expired")
-    return FileResponse(
+    return XlsxFileResponse(
         file_path,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        media_type=XLSX_MEDIA_TYPE,
         filename=file_path.name,
     )
 
@@ -186,16 +205,18 @@ def download_result_file(session: SessionDep, job_id: uuid.UUID) -> FileResponse
 @router.get(
     "/{job_id}/errors",
     dependencies=[Depends(get_current_active_superuser)],
+    response_class=XlsxFileResponse,
+    responses=XLSX_RESPONSE,
 )
-def download_error_file(session: SessionDep, job_id: uuid.UUID) -> FileResponse:
+def download_error_file(session: SessionDep, job_id: uuid.UUID) -> XlsxFileResponse:
     job = session.get(DataJob, job_id)
     if not job or not job.error_file_path:
         raise HTTPException(status_code=404, detail="Error file not found")
     file_path = Path(job.error_file_path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Error file expired")
-    return FileResponse(
+    return XlsxFileResponse(
         file_path,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        media_type=XLSX_MEDIA_TYPE,
         filename=file_path.name,
     )

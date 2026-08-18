@@ -14,7 +14,6 @@ from app.models import (
     Category,
     DataJob,
     DataJobError,
-    Item,
     Transaction,
     User,
 )
@@ -31,7 +30,6 @@ def _cleanup_db(session: Session) -> None:
     session.execute(delete(Transaction))
     session.execute(delete(Budget))
     session.execute(delete(Category))
-    session.execute(delete(Item))
     session.execute(delete(User))
     session.commit()
 

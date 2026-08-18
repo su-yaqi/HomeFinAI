@@ -2,12 +2,12 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { KeyRound, RotateCcw, ShieldAlert } from "lucide-react"
 import { useState } from "react"
 
+import { UsersService } from "@/client"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { LoadingButton } from "@/components/ui/loading-button"
-import { homefinApi } from "@/features/homefin/api"
 import useAuth from "@/hooks/useAuth"
 import useCustomToast from "@/hooks/useCustomToast"
 import { handleError } from "@/utils"
@@ -25,20 +25,22 @@ const MfaSettings = () => {
   }
 
   const setupMutation = useMutation({
-    mutationFn: () => homefinApi.setupMyMfa(),
+    mutationFn: () => UsersService.setupMfa(),
     onSuccess: (payload) => {
       setSetupSecret(payload.secret)
       setSetupUri(payload.otpauth_uri)
       setVerificationCode("")
     },
-    onError: handleError.bind(showErrorToast) as never,
+    onError: handleError.bind(showErrorToast),
   })
 
   const enableMutation = useMutation({
     mutationFn: () =>
-      homefinApi.enableMyMfa({
-        secret: setupSecret ?? "",
-        code: verificationCode,
+      UsersService.enableMfa({
+        requestBody: {
+          secret: setupSecret ?? "",
+          code: verificationCode,
+        },
       }),
     onSuccess: async () => {
       showSuccessToast("MFA enabled successfully")
@@ -47,11 +49,11 @@ const MfaSettings = () => {
       setVerificationCode("")
       await refreshCurrentUser()
     },
-    onError: handleError.bind(showErrorToast) as never,
+    onError: handleError.bind(showErrorToast),
   })
 
   const resetMutation = useMutation({
-    mutationFn: () => homefinApi.resetMyMfa(),
+    mutationFn: () => UsersService.resetMyMfa(),
     onSuccess: async () => {
       showSuccessToast("MFA reset successfully")
       setSetupSecret(null)
@@ -59,11 +61,11 @@ const MfaSettings = () => {
       setVerificationCode("")
       await refreshCurrentUser()
     },
-    onError: handleError.bind(showErrorToast) as never,
+    onError: handleError.bind(showErrorToast),
   })
 
   const disableMutation = useMutation({
-    mutationFn: () => homefinApi.disableMyMfa(),
+    mutationFn: () => UsersService.disableMyMfa(),
     onSuccess: async () => {
       showSuccessToast("MFA disabled successfully")
       setSetupSecret(null)
@@ -71,7 +73,7 @@ const MfaSettings = () => {
       setVerificationCode("")
       await refreshCurrentUser()
     },
-    onError: handleError.bind(showErrorToast) as never,
+    onError: handleError.bind(showErrorToast),
   })
 
   const isLoading =

@@ -18,6 +18,15 @@ OpenAPI.BASE = import.meta.env.VITE_API_URL
 OpenAPI.TOKEN = async () => {
   return localStorage.getItem("access_token") || ""
 }
+OpenAPI.interceptors.request.use((config) => {
+  if (
+    config.url &&
+    /\/system\/data-jobs\/(template|[^/]+\/(result|errors))$/.test(config.url)
+  ) {
+    config.responseType = "blob"
+  }
+  return config
+})
 
 const handleApiError = (error: Error) => {
   if (error instanceof ApiError && isAuthSessionInvalid(error)) {

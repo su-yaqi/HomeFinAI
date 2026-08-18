@@ -11,12 +11,11 @@ import { PageHeader } from "@/components/Common/PageHeader"
 import PendingUsers from "@/components/Pending/PendingUsers"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { homefinApi } from "@/features/homefin/api"
 import useAuth from "@/hooks/useAuth"
 
 function getUsersQueryOptions(page: number, pageSize: number) {
   return {
-    queryFn: () => homefinApi.readUsers({ page, page_size: pageSize }),
+    queryFn: () => UsersService.readUsers({ page, pageSize }),
     queryKey: ["users", page, pageSize],
   }
 }

@@ -3,6 +3,7 @@ import { ShieldAlert } from "lucide-react"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 
+import { UsersService } from "@/client"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -15,7 +16,6 @@ import {
 } from "@/components/ui/dialog"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { LoadingButton } from "@/components/ui/loading-button"
-import { homefinApi } from "@/features/homefin/api"
 import useCustomToast from "@/hooks/useCustomToast"
 import { handleError } from "@/utils"
 
@@ -32,13 +32,13 @@ const ResetUserMfa = ({ userId, loginName, onSuccess }: ResetUserMfaProps) => {
   const { handleSubmit } = useForm()
 
   const mutation = useMutation({
-    mutationFn: () => homefinApi.resetUserMfa(userId),
+    mutationFn: () => UsersService.resetUserMfa({ userId }),
     onSuccess: () => {
       showSuccessToast("MFA reset successfully")
       setIsOpen(false)
       onSuccess()
     },
-    onError: handleError.bind(showErrorToast) as never,
+    onError: handleError.bind(showErrorToast),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] })
     },

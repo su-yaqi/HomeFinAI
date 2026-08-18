@@ -6,8 +6,8 @@ test.use({ storageState: { cookies: [], origins: [] } })
 
 const apiBaseUrl = process.env.VITE_API_URL ?? "http://localhost:8000"
 
-const fillForm = async (page: Page, email: string, password: string) => {
-  await page.getByTestId("email-input").fill(email)
+const fillForm = async (page: Page, loginName: string, password: string) => {
+  await page.getByTestId("login-name-input").fill(loginName)
   await page.getByTestId("password-input").fill(password)
 }
 
@@ -21,7 +21,7 @@ const verifyInput = async (page: Page, testId: string) => {
 test("Inputs are visible, empty and editable", async ({ page }) => {
   await page.goto("/login")
 
-  await verifyInput(page, "email-input")
+  await verifyInput(page, "login-name-input")
   await verifyInput(page, "password-input")
 })
 
@@ -31,56 +31,60 @@ test("Log In button is visible", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Log In" })).toBeVisible()
 })
 
-test("Forgot Password link is visible", async ({ page }) => {
+test("Log in with valid login name and password", async ({ page }) => {
   await page.goto("/login")
 
-  await expect(
-    page.getByRole("link", { name: "Forgot your password?" }),
-  ).toBeVisible()
-})
-
-test("Log in with valid email and password ", async ({ page }) => {
-  await page.goto("/login")
-
-  await fillForm(page, firstSuperuser, firstSuperuserPassword)
+  await fillForm(
+    page,
+    firstSuperuser.split("@", 1)[0] ?? firstSuperuser,
+    firstSuperuserPassword,
+  )
   await page.getByRole("button", { name: "Log In" }).click()
 
   await page.waitForURL("/")
 
   await expect(
-    page.getByText("Welcome back, nice to see you again!"),
+    page.getByRole("heading", { name: "Financial Dashboard" }),
   ).toBeVisible()
 })
 
-test("Log in with invalid email", async ({ page }) => {
+test("Log in with invalid login name", async ({ page }) => {
   await page.goto("/login")
 
   await fillForm(page, "invalidemail", firstSuperuserPassword)
   await page.getByRole("button", { name: "Log In" }).click()
 
-  await expect(page.getByText("Invalid email address")).toBeVisible()
+  await expect(page.getByText("Incorrect login name or password")).toBeVisible()
 })
 
 test("Log in with invalid password", async ({ page }) => {
   const password = randomPassword()
 
   await page.goto("/login")
-  await fillForm(page, firstSuperuser, password)
+  await fillForm(
+    page,
+    firstSuperuser.split("@", 1)[0] ?? firstSuperuser,
+    password,
+  )
   await page.getByRole("button", { name: "Log In" }).click()
 
-  await expect(page.getByText("Incorrect email or password")).toBeVisible()
+  await expect(page.getByText("Incorrect login name or password")).toBeVisible()
 })
 
 test("Successful log out", async ({ page }) => {
   await page.goto("/login")
 
-  await fillForm(page, firstSuperuser, firstSuperuserPassword)
+  await fillForm(
+    page,
+    firstSuperuser.split("@", 1)[0] ?? firstSuperuser,
+    firstSuperuserPassword,
+  )
   await page.getByRole("button", { name: "Log In" }).click()
 
   await page.waitForURL("/")
 
   await expect(
-    page.getByText("Welcome back, nice to see you again!"),
+    page.getByRole("heading", { name: "Financial Dashboard" }),
   ).toBeVisible()
 
   await page.getByTestId("user-menu").click()
@@ -91,13 +95,17 @@ test("Successful log out", async ({ page }) => {
 test("Logged-out user cannot access protected routes", async ({ page }) => {
   await page.goto("/login")
 
-  await fillForm(page, firstSuperuser, firstSuperuserPassword)
+  await fillForm(
+    page,
+    firstSuperuser.split("@", 1)[0] ?? firstSuperuser,
+    firstSuperuserPassword,
+  )
   await page.getByRole("button", { name: "Log In" }).click()
 
   await page.waitForURL("/")
 
   await expect(
-    page.getByText("Welcome back, nice to see you again!"),
+    page.getByRole("heading", { name: "Financial Dashboard" }),
   ).toBeVisible()
 
   await page.getByTestId("user-menu").click()

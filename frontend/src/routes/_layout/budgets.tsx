@@ -3,6 +3,11 @@ import { createFileRoute } from "@tanstack/react-router"
 import { Pencil, Plus, Trash2 } from "lucide-react"
 import { useState } from "react"
 
+import {
+  type BudgetPublic as Budget,
+  type BudgetPeriod,
+  BudgetsService,
+} from "@/client"
 import { PageHeader } from "@/components/Common/PageHeader"
 import { TablePagination } from "@/components/Common/TablePagination"
 import { Button } from "@/components/ui/button"
@@ -32,11 +37,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  type Budget,
-  type BudgetPeriod,
-  homefinApi,
-} from "@/features/homefin/api"
 import useCustomToast from "@/hooks/useCustomToast"
 import { handleError } from "@/utils"
 
@@ -67,7 +67,7 @@ function BudgetsPage() {
   const [pageSize, setPageSize] = useState(10)
   const { data, isLoading } = useQuery({
     queryKey: ["budgets", page, pageSize],
-    queryFn: () => homefinApi.readBudgets({ page, page_size: pageSize }),
+    queryFn: () => BudgetsService.readBudgets({ page, pageSize }),
   })
 
   const budgets = data?.data ?? []
@@ -85,8 +85,11 @@ function BudgetsPage() {
         amount: Number(form.amount),
       }
       return editing
-        ? homefinApi.updateBudget(editing.id, payload)
-        : homefinApi.createBudget(payload)
+        ? BudgetsService.updateBudget({
+            budgetId: editing.id,
+            requestBody: payload,
+          })
+        : BudgetsService.createBudget({ requestBody: payload })
     },
     onSuccess: () => {
       showSuccessToast(editing ? "Budget updated" : "Budget created")
@@ -96,17 +99,17 @@ function BudgetsPage() {
       queryClient.invalidateQueries({ queryKey: ["budgets"] })
       queryClient.invalidateQueries({ queryKey: ["dashboard"] })
     },
-    onError: handleError.bind(showErrorToast) as never,
+    onError: handleError.bind(showErrorToast),
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => homefinApi.deleteBudget(id),
+    mutationFn: (id: string) => BudgetsService.deleteBudget({ budgetId: id }),
     onSuccess: () => {
       showSuccessToast("Budget deleted")
       queryClient.invalidateQueries({ queryKey: ["budgets"] })
       queryClient.invalidateQueries({ queryKey: ["dashboard"] })
     },
-    onError: handleError.bind(showErrorToast) as never,
+    onError: handleError.bind(showErrorToast),
   })
 
   const openCreate = () => {
@@ -275,7 +278,7 @@ function BudgetsPage() {
                           {formatCurrency(budget.amount)}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Used {formatCurrency(budget.used_amount)}
+                          Used {formatCurrency(budget.used_amount ?? 0)}
                         </p>
                       </div>
                     </div>
@@ -330,7 +333,7 @@ function BudgetsPage() {
                       <TableCell>{periodLabel[budget.period]}</TableCell>
                       <TableCell>{formatCurrency(budget.amount)}</TableCell>
                       <TableCell>
-                        {formatCurrency(budget.used_amount)}
+                        {formatCurrency(budget.used_amount ?? 0)}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">

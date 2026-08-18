@@ -37,7 +37,6 @@ HomeFin 是一个从 FastAPI 全栈模板演进而来的家庭记账与财务管
 | api-tokens | 管理员 API Token 创建、禁用与一次性明文返回 |
 | data-jobs | 管理员数据备份导出、Excel 模板下载、批量导入、结果文件下载与错误明细追踪 |
 | agent-api | 外部 Agent 基于 Token 的交易、预算、分类查询和 CRUD |
-| items | 模板遗留模块，后端 API 仍保留，前端主路径已迁移到交易模块 |
 | shared-infra | OpenAPI Client、邮件模板、迁移、测试与 CI 支撑 |
 
 ## 版本状态

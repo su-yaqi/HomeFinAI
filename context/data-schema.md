@@ -1,9 +1,9 @@
 # 数据模型
 
-> v0.8 后，项目的数据核心已经扩展到 `user + item + category + budget + transaction + apitoken + apitokennonce + datajob + datajoberror`；其中 `item` 仍作为模板兼容表保留，`transaction` 通过 `handler_user_id` 关联经手人用户并使用 `summary + detail` 承载账单摘要和柔性详情，`apitokennonce` 承载 Agent HMAC 防重放状态。
+> v0.8 后，项目的数据核心为 `user + category + budget + transaction + apitoken + apitokennonce + datajob + datajoberror`；`transaction` 通过 `handler_user_id` 关联经手人用户并使用 `summary + detail` 承载账单摘要和柔性详情，`apitokennonce` 承载 Agent HMAC 防重放状态。
 
 ## 命名规范
-- 表名：由 SQLModel 根据类名推导，当前实际为 `user`、`item`、`category`、`budget`、`transaction`、`apitoken`、`apitokennonce`、`datajob`、`datajoberror`
+- 表名：由 SQLModel 根据类名推导，当前实际为 `user`、`category`、`budget`、`transaction`、`apitoken`、`apitokennonce`、`datajob`、`datajoberror`
 - 字段名：Python 侧统一使用 snake_case
 - 主键：统一使用 UUID
 - 时间：统一使用 UTC 时间，`created_at` / `last_used_at` 为 timezone-aware datetime
@@ -19,7 +19,6 @@
 
 ## 实体关系概览
 ```
-User 1 ──── N Item
 User 1 ──── N Category
 User 1 ──── N Budget
 User 1 ──── N Transaction(owner_id)
@@ -57,17 +56,6 @@ DataJob  1 ──── N DataJobError
 |------|------|
 | email | 唯一索引 |
 | login_name | 唯一索引 |
-
-### item
-模板遗留示例表，当前不再作为主业务对象。
-
-| 字段 | 类型 | 可空 | 默认值 | 说明 |
-|------|------|------|--------|------|
-| id | UUID | 否 | `uuid4()` | 主键 |
-| title | varchar(255) | 否 | - | 标题 |
-| description | varchar(255) | 是 | `null` | 描述 |
-| created_at | timestamptz | 是 | 当前 UTC 时间 | 创建时间 |
-| owner_id | UUID | 否 | - | 归属用户 |
 
 ### category
 用户自有分类表，支持一层或多层父子关系。

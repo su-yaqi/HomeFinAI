@@ -2,9 +2,9 @@ import { useQuery } from "@tanstack/react-query"
 import { createFileRoute } from "@tanstack/react-router"
 import { ArrowDownRight, ArrowUpRight, PiggyBank, Wallet } from "lucide-react"
 
+import { DashboardService } from "@/client"
 import { PageHeader } from "@/components/Common/PageHeader"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { homefinApi } from "@/features/homefin/api"
 
 export const Route = createFileRoute("/_layout/")({
   component: Dashboard,
@@ -20,7 +20,7 @@ export const Route = createFileRoute("/_layout/")({
 function Dashboard() {
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard"],
-    queryFn: homefinApi.readDashboard,
+    queryFn: DashboardService.readDashboard,
   })
 
   const summaryCards = [

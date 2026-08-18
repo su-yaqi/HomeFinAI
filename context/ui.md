@@ -27,7 +27,6 @@
 ├── /system/api-tokens         # API Token 管理页（管理员）
 ├── /system/data-management    # 数据导入导出页（管理员）
 ├── /settings                  # 用户设置页
-├── /items                     # 兼容路由，当前跳转 /transactions
 └── /admin                     # 兼容路由，当前跳转 /system/accounts
 ```
 
@@ -60,7 +59,7 @@
 - 前端登录态基于 `localStorage.access_token` 判断，不依赖 Cookie Session。
 - React Query 全局错误处理在遇到 401/403，或 `404 User not found` 时会清理 token 并跳转登录页。
 - `/system/accounts`、`/system/api-tokens` 与 `/system/data-management` 在路由加载阶段会校验 `is_superuser`。
-- `/signup`、`/items`、`/admin` 目前仅作为兼容入口，不再是主导航路径。
+- `/signup`、`/admin` 目前仅作为兼容入口，不再是主导航路径。
 
 ## 响应式页面约定
 - 断点以 Tailwind `md` 为桌面表格与移动卡片的主要切换点；移动端内容保持单列，页面级操作允许占满可用宽度。

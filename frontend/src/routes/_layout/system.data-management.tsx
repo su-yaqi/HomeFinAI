@@ -3,7 +3,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router"
 import { Download, FileSpreadsheet, RefreshCcw, Upload } from "lucide-react"
 import { useState } from "react"
 
-import { UsersService } from "@/client"
+import { type DataJobPublic, DataJobsService, UsersService } from "@/client"
 import { PageHeader } from "@/components/Common/PageHeader"
 import { TablePagination } from "@/components/Common/TablePagination"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -19,7 +19,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { type DataJobRecord, homefinApi } from "@/features/homefin/api"
 import useCustomToast from "@/hooks/useCustomToast"
 import { handleError } from "@/utils"
 
@@ -45,9 +44,9 @@ function DataManagementPage() {
 
   const jobsQuery = useQuery({
     queryKey: ["data-jobs", page, pageSize],
-    queryFn: () => homefinApi.readDataJobs({ page, page_size: pageSize }),
+    queryFn: () => DataJobsService.readDataJobs({ page, pageSize }),
     refetchInterval: (query) => {
-      const jobs = (query.state.data?.data ?? []) as DataJobRecord[]
+      const jobs = query.state.data?.data ?? []
       return jobs.some(
         (job) => job.status === "PENDING" || job.status === "PROCESSING",
       )
@@ -57,12 +56,12 @@ function DataManagementPage() {
   })
 
   const exportMutation = useMutation({
-    mutationFn: () => homefinApi.createExportJob(),
+    mutationFn: () => DataJobsService.createExportJob(),
     onSuccess: () => {
       showSuccessToast("Export job started")
       queryClient.invalidateQueries({ queryKey: ["data-jobs"] })
     },
-    onError: handleError.bind(showErrorToast) as never,
+    onError: handleError.bind(showErrorToast),
   })
 
   const importMutation = useMutation({
@@ -70,7 +69,9 @@ function DataManagementPage() {
       if (!selectedFile) {
         throw new Error("Please choose an Excel file to import")
       }
-      return homefinApi.createImportJob(selectedFile)
+      return DataJobsService.createImportJob({
+        formData: { file: selectedFile },
+      })
     },
     onSuccess: () => {
       showSuccessToast("Import job started")
@@ -91,7 +92,7 @@ function DataManagementPage() {
   )
 
   const handleBlobDownload = async (
-    loader: () => Promise<Blob>,
+    loader: () => PromiseLike<Blob>,
     filename: string,
   ) => {
     try {
@@ -171,7 +172,7 @@ function DataManagementPage() {
                 className="min-h-11 w-full sm:min-h-9 sm:w-auto"
                 onClick={() =>
                   handleBlobDownload(
-                    homefinApi.downloadDataJobTemplate,
+                    DataJobsService.downloadTemplate,
                     "homefin-import-template.xlsx",
                   )
                 }
@@ -259,7 +260,10 @@ function DataManagementPage() {
                             className="min-h-11"
                             onClick={() =>
                               handleBlobDownload(
-                                () => homefinApi.downloadDataJobResult(job.id),
+                                () =>
+                                  DataJobsService.downloadResultFile({
+                                    jobId: job.id,
+                                  }),
                                 `data-job-${job.id}-result.xlsx`,
                               )
                             }
@@ -274,7 +278,10 @@ function DataManagementPage() {
                             className="min-h-11"
                             onClick={() =>
                               handleBlobDownload(
-                                () => homefinApi.downloadDataJobErrors(job.id),
+                                () =>
+                                  DataJobsService.downloadErrorFile({
+                                    jobId: job.id,
+                                  }),
                                 `data-job-${job.id}-errors.xlsx`,
                               )
                             }
@@ -349,7 +356,10 @@ function DataManagementPage() {
                             size="sm"
                             onClick={() =>
                               handleBlobDownload(
-                                () => homefinApi.downloadDataJobResult(job.id),
+                                () =>
+                                  DataJobsService.downloadResultFile({
+                                    jobId: job.id,
+                                  }),
                                 `data-job-${job.id}-result.xlsx`,
                               )
                             }
@@ -363,7 +373,10 @@ function DataManagementPage() {
                             size="sm"
                             onClick={() =>
                               handleBlobDownload(
-                                () => homefinApi.downloadDataJobErrors(job.id),
+                                () =>
+                                  DataJobsService.downloadErrorFile({
+                                    jobId: job.id,
+                                  }),
                                 `data-job-${job.id}-errors.xlsx`,
                               )
                             }
@@ -407,7 +420,7 @@ function DataManagementPage() {
   )
 }
 
-function badgeVariant(status: DataJobRecord["status"]) {
+function badgeVariant(status: DataJobPublic["status"]) {
   if (status === "SUCCEEDED") {
     return "default" as const
   }

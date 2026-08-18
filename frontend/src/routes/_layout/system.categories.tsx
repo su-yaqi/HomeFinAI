@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { createFileRoute } from "@tanstack/react-router"
 import { Pencil, Plus, Trash2 } from "lucide-react"
 import { useMemo, useState } from "react"
+import { CategoriesService, type CategoryPublic as Category } from "@/client"
 import { PageHeader } from "@/components/Common/PageHeader"
 import { TablePagination } from "@/components/Common/TablePagination"
 import { Button } from "@/components/ui/button"
@@ -31,7 +32,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { type Category, homefinApi } from "@/features/homefin/api"
 import useCustomToast from "@/hooks/useCustomToast"
 import { handleError } from "@/utils"
 
@@ -55,11 +55,11 @@ function CategoriesPage() {
   const [pageSize, setPageSize] = useState(10)
   const { data, isLoading } = useQuery({
     queryKey: ["categories", page, pageSize],
-    queryFn: () => homefinApi.readCategories({ page, page_size: pageSize }),
+    queryFn: () => CategoriesService.readCategories({ page, pageSize }),
   })
   const categoriesOptionsQuery = useQuery({
     queryKey: ["category-options"],
-    queryFn: () => homefinApi.readCategories({ page: 1, page_size: 200 }),
+    queryFn: () => CategoriesService.readCategories({ page: 1, pageSize: 200 }),
   })
 
   const categories = data?.data ?? []
@@ -82,8 +82,11 @@ function CategoriesPage() {
         parent_id: form.parent_id || null,
       }
       return editing
-        ? homefinApi.updateCategory(editing.id, payload)
-        : homefinApi.createCategory(payload)
+        ? CategoriesService.updateCategory({
+            categoryId: editing.id,
+            requestBody: payload,
+          })
+        : CategoriesService.createCategory({ requestBody: payload })
     },
     onSuccess: () => {
       showSuccessToast(editing ? "Category updated" : "Category created")
@@ -93,17 +96,18 @@ function CategoriesPage() {
       queryClient.invalidateQueries({ queryKey: ["categories"] })
       queryClient.invalidateQueries({ queryKey: ["category-options"] })
     },
-    onError: handleError.bind(showErrorToast) as never,
+    onError: handleError.bind(showErrorToast),
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => homefinApi.deleteCategory(id),
+    mutationFn: (id: string) =>
+      CategoriesService.deleteCategory({ categoryId: id }),
     onSuccess: () => {
       showSuccessToast("Category deleted")
       queryClient.invalidateQueries({ queryKey: ["categories"] })
       queryClient.invalidateQueries({ queryKey: ["category-options"] })
     },
-    onError: handleError.bind(showErrorToast) as never,
+    onError: handleError.bind(showErrorToast),
   })
 
   const openCreate = () => {

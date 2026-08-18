@@ -150,7 +150,7 @@ The current repository focuses on:
 - API token and Agent integration scenarios
 - structured transaction data and import/export workflows
 
-Some template-era modules such as `items` are still present for compatibility, but the main product flow is centered on categories, budgets, transactions, dashboard, system management, and agent-facing APIs.
+The product flow is centered on categories, budgets, transactions, dashboard, system management, and agent-facing APIs.
 
 ## Deployment
 

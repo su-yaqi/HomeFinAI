@@ -32,8 +32,7 @@ context/
     ├── transactions/
     ├── dashboard/
     ├── api-tokens/
-    ├── agent-api/
-    └── items/
+    └── agent-api/
 ```
 
 ## 文件层级职责

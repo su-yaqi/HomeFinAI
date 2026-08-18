@@ -151,6 +151,60 @@ def test_agent_transaction_crud(
     assert delete_response.status_code == 200
 
 
+def test_agent_transactions_reject_cross_owner_category_and_budget(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    normal_user_token_headers: dict[str, str],
+) -> None:
+    foreign_category = client.post(
+        f"{settings.API_V1_STR}/categories/",
+        headers=normal_user_token_headers,
+        json={"name": "Foreign Category", "color": "#334455"},
+    ).json()
+    foreign_budget = client.post(
+        f"{settings.API_V1_STR}/budgets/",
+        headers=normal_user_token_headers,
+        json={"name": "Foreign Budget", "year": 2026, "period": 1, "amount": 500},
+    ).json()
+    own_category = client.post(
+        f"{settings.API_V1_STR}/categories/",
+        headers=superuser_token_headers,
+        json={"name": "Owned Category", "color": "#556677"},
+    ).json()
+    token_response = client.post(
+        f"{settings.API_V1_STR}/system/api-tokens/",
+        headers=superuser_token_headers,
+        json={"name": "Agent Ownership Validation"},
+    )
+    agent_headers = {"Authorization": f"Bearer {token_response.json()['token']}"}
+    payload = {
+        "transaction_type": TransactionType.EXPENSE,
+        "amount": 42,
+        "entry_status": EntryStatus.PENDING,
+        "transaction_date": "2026-06-09",
+    }
+
+    foreign_category_response = client.post(
+        f"{settings.API_V1_STR}/agent/transactions/",
+        headers=agent_headers,
+        json={**payload, "category_id": foreign_category["id"]},
+    )
+    assert foreign_category_response.status_code == 400
+    assert foreign_category_response.json() == {"detail": "Category not found"}
+
+    foreign_budget_response = client.post(
+        f"{settings.API_V1_STR}/agent/transactions/",
+        headers=agent_headers,
+        json={
+            **payload,
+            "category_id": own_category["id"],
+            "budget_id": foreign_budget["id"],
+        },
+    )
+    assert foreign_budget_response.status_code == 400
+    assert foreign_budget_response.json() == {"detail": "Budget not found"}
+
+
 def test_agent_can_read_handler_options_and_use_selected_handler(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:

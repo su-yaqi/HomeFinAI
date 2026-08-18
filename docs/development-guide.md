@@ -5,7 +5,7 @@ This guide defines how to extend the current project template safely and consist
 
 ## Project Positioning
 - The repository is a full-stack template based on FastAPI + React.
-- It already includes authentication, password recovery, user self-service, admin user management, item management, theme switching, generated API client support, backend tests, and Playwright E2E coverage.
+- It already includes authentication, password recovery, user self-service, admin user management, financial management, theme switching, generated API client support, backend tests, and Playwright E2E coverage.
 - Future work should extend these patterns instead of introducing parallel abstractions.
 
 ## Tech Stack
@@ -71,7 +71,7 @@ This guide defines how to extend the current project template safely and consist
 - Route files should stay thin: page title metadata, route guards, query bootstrapping, and high-level layout only.
 - Move forms, dialogs, tables, and menus into feature components under `frontend/src/components/<Feature>`.
 - Keep app-wide primitives under `frontend/src/components/ui` and shared shells under `frontend/src/components/Common` or `Sidebar`.
-- Query keys should remain stable and human-readable, following the current pattern such as `["users"]`, `["items"]`, `["currentUser"]`.
+- Query keys should remain stable and human-readable, following the current pattern such as `["users"]`, `["transactions"]`, `["currentUser"]`.
 
 ## UI And Component Style
 ### Existing style direction
@@ -82,8 +82,8 @@ This guide defines how to extend the current project template safely and consist
 ### Component rules
 - Reuse existing `ui` primitives before creating new low-level controls.
 - Reuse the existing dialog + form + loading button pattern for CRUD workflows.
-- Prefer composition over one-off page-specific markup when interaction patterns already exist in `Admin`, `Items`, or `UserSettings`.
-- Empty states should be explicit and friendly, following the current `Items` page pattern.
+- Prefer composition over one-off page-specific markup when interaction patterns already exist in `Admin`, `Transactions`, or `UserSettings`.
+- Empty states should be explicit and friendly, following the current financial management pages.
 - New navigation entries should be added through the sidebar item config, not hard-coded in multiple locations.
 
 ### Styling rules
@@ -124,7 +124,7 @@ This guide defines how to extend the current project template safely and consist
 ## Testing Expectations
 ### Frontend
 - For user-facing behavior changes, add or update Playwright coverage in `frontend/tests`.
-- Prefer extending the existing flow-based specs for auth, admin, items, and settings before creating scattered one-off files.
+- Prefer extending the existing flow-based specs for auth, admin, transactions, and settings before creating scattered one-off files.
 
 ### Backend
 - Add or update Pytest coverage for new API behavior, startup logic, or CRUD branches.

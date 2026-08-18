@@ -3,7 +3,11 @@ import { createFileRoute, redirect } from "@tanstack/react-router"
 import { Ban, Copy, KeyRound, Plus, Trash2 } from "lucide-react"
 import { useState } from "react"
 
-import { UsersService } from "@/client"
+import {
+  type ApiTokenSecretPublic,
+  ApiTokensService,
+  UsersService,
+} from "@/client"
 import { PageHeader } from "@/components/Common/PageHeader"
 import { TablePagination } from "@/components/Common/TablePagination"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -29,7 +33,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { type ApiTokenSecret, homefinApi } from "@/features/homefin/api"
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard"
 import useCustomToast from "@/hooks/useCustomToast"
 import { handleError } from "@/utils"
@@ -57,19 +60,23 @@ function ApiTokensPage() {
   const [name, setName] = useState("")
   const [expiresAt, setExpiresAt] = useState("")
   const [generateSecret, setGenerateSecret] = useState(false)
-  const [latestSecret, setLatestSecret] = useState<ApiTokenSecret | null>(null)
+  const [latestSecret, setLatestSecret] = useState<ApiTokenSecretPublic | null>(
+    null,
+  )
 
   const tokensQuery = useQuery({
     queryKey: ["api-tokens", page, pageSize],
-    queryFn: () => homefinApi.readApiTokens({ page, page_size: pageSize }),
+    queryFn: () => ApiTokensService.readApiTokens({ page, pageSize }),
   })
 
   const createMutation = useMutation({
     mutationFn: () =>
-      homefinApi.createApiToken({
-        name,
-        expires_at: expiresAt ? `${expiresAt}T00:00:00Z` : null,
-        generate_secret: generateSecret,
+      ApiTokensService.createApiToken({
+        requestBody: {
+          name,
+          expires_at: expiresAt ? `${expiresAt}T00:00:00Z` : null,
+          generate_secret: generateSecret,
+        },
       }),
     onSuccess: (secret) => {
       showSuccessToast("API token created")
@@ -80,25 +87,27 @@ function ApiTokensPage() {
       setGenerateSecret(false)
       queryClient.invalidateQueries({ queryKey: ["api-tokens"] })
     },
-    onError: handleError.bind(showErrorToast) as never,
+    onError: handleError.bind(showErrorToast),
   })
 
   const disableMutation = useMutation({
-    mutationFn: (id: string) => homefinApi.disableApiToken(id),
+    mutationFn: (id: string) =>
+      ApiTokensService.disableApiToken({ tokenId: id }),
     onSuccess: () => {
       showSuccessToast("API token disabled")
       queryClient.invalidateQueries({ queryKey: ["api-tokens"] })
     },
-    onError: handleError.bind(showErrorToast) as never,
+    onError: handleError.bind(showErrorToast),
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => homefinApi.deleteApiToken(id),
+    mutationFn: (id: string) =>
+      ApiTokensService.deleteApiToken({ tokenId: id }),
     onSuccess: () => {
       showSuccessToast("API token deleted")
       queryClient.invalidateQueries({ queryKey: ["api-tokens"] })
     },
-    onError: handleError.bind(showErrorToast) as never,
+    onError: handleError.bind(showErrorToast),
   })
 
   const tokens = tokensQuery.data?.data ?? []

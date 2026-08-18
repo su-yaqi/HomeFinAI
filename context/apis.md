@@ -164,17 +164,6 @@
 | PUT | /agent/categories/{category_id} | Agent 更新分类 |
 | DELETE | /agent/categories/{category_id} | Agent 删除分类 |
 
-### items
-> 详情见 `context/modules/items/api.md`
-
-| Method | Path | 描述 |
-|--------|------|------|
-| GET | /items/ | 读取遗留 Item 列表 |
-| POST | /items/ | 创建遗留 Item |
-| GET | /items/{id} | 获取遗留 Item |
-| PUT | /items/{id} | 更新遗留 Item |
-| DELETE | /items/{id} | 删除遗留 Item |
-
 ### shared utilities
 > 详情见 `context/modules/app-shell/api.md`
 

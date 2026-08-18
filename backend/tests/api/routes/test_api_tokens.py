@@ -35,7 +35,7 @@ def test_create_and_disable_api_token(
 def test_read_api_tokens_supports_page_and_page_size(
     client: TestClient, superuser_token_headers: dict[str, str]
 ) -> None:
-    for index in range(12):
+    for index in range(20):
         create_response = client.post(
             f"{settings.API_V1_STR}/system/api-tokens/",
             headers=superuser_token_headers,
@@ -43,16 +43,26 @@ def test_read_api_tokens_supports_page_and_page_size(
         )
         assert create_response.status_code == 200
 
-    list_response = client.get(
+    first_page_response = client.get(
+        f"{settings.API_V1_STR}/system/api-tokens/?page=1&page_size=10",
+        headers=superuser_token_headers,
+    )
+    second_page_response = client.get(
         f"{settings.API_V1_STR}/system/api-tokens/?page=2&page_size=10",
         headers=superuser_token_headers,
     )
 
-    assert list_response.status_code == 200
-    payload = list_response.json()
-    assert payload["count"] >= 12
-    assert len(payload["data"]) >= 2
-    assert len(payload["data"]) < 10
+    assert first_page_response.status_code == 200
+    assert second_page_response.status_code == 200
+    first_page = first_page_response.json()
+    second_page = second_page_response.json()
+    assert first_page["count"] >= 20
+    assert second_page["count"] == first_page["count"]
+    assert len(first_page["data"]) == 10
+    assert len(second_page["data"]) == 10
+    assert {item["id"] for item in first_page["data"]}.isdisjoint(
+        item["id"] for item in second_page["data"]
+    )
 
 
 def test_create_api_token_uses_alphanumeric_value_and_can_be_deleted(
