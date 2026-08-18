@@ -10,6 +10,7 @@ frontend/dist/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+/.playwright-cli/
 .env
 .env.local
 frontend/.env

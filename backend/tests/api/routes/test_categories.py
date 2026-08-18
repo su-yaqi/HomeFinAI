@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi.testclient import TestClient
 
 from app.core.config import settings
@@ -102,3 +104,82 @@ def test_categories_reject_invalid_hex_and_parent_cycles(
     assert (
         cycle_response.json()["detail"] == "Category hierarchy cannot contain a cycle"
     )
+
+
+def test_category_update_duplicate_invalid_parent_and_delete(
+    client: TestClient, normal_user_token_headers: dict[str, str]
+) -> None:
+    first = client.post(
+        f"{settings.API_V1_STR}/categories/",
+        headers=normal_user_token_headers,
+        json={"name": "Utilities", "color": "#123"},
+    ).json()
+    second = client.post(
+        f"{settings.API_V1_STR}/categories/",
+        headers=normal_user_token_headers,
+        json={"name": "Internet", "color": "#abcdef"},
+    ).json()
+
+    duplicate_create = client.post(
+        f"{settings.API_V1_STR}/categories/",
+        headers=normal_user_token_headers,
+        json={"name": "Utilities", "color": "#ffffff"},
+    )
+    assert duplicate_create.status_code == 409
+
+    invalid_parent = client.put(
+        f"{settings.API_V1_STR}/categories/{first['id']}",
+        headers=normal_user_token_headers,
+        json={"parent_id": str(uuid.uuid4())},
+    )
+    assert invalid_parent.status_code == 400
+    assert invalid_parent.json() == {"detail": "Invalid parent category"}
+
+    duplicate_update = client.put(
+        f"{settings.API_V1_STR}/categories/{second['id']}",
+        headers=normal_user_token_headers,
+        json={"name": "Utilities"},
+    )
+    assert duplicate_update.status_code == 409
+
+    invalid_color = client.put(
+        f"{settings.API_V1_STR}/categories/{second['id']}",
+        headers=normal_user_token_headers,
+        json={"color": "not-a-color"},
+    )
+    assert invalid_color.status_code == 422
+
+    update_response = client.put(
+        f"{settings.API_V1_STR}/categories/{second['id']}",
+        headers=normal_user_token_headers,
+        json={"name": "Fiber Internet", "color": "#00ffaa"},
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["name"] == "Fiber Internet"
+
+    delete_response = client.delete(
+        f"{settings.API_V1_STR}/categories/{second['id']}",
+        headers=normal_user_token_headers,
+    )
+    assert delete_response.status_code == 200
+    assert delete_response.json() == {"message": "Category deleted successfully"}
+
+
+def test_category_update_and_delete_missing(
+    client: TestClient, normal_user_token_headers: dict[str, str]
+) -> None:
+    missing_id = uuid.uuid4()
+    update_response = client.put(
+        f"{settings.API_V1_STR}/categories/{missing_id}",
+        headers=normal_user_token_headers,
+        json={"name": "Missing"},
+    )
+    assert update_response.status_code == 404
+    assert update_response.json() == {"detail": "Category not found"}
+
+    delete_response = client.delete(
+        f"{settings.API_V1_STR}/categories/{missing_id}",
+        headers=normal_user_token_headers,
+    )
+    assert delete_response.status_code == 404
+    assert delete_response.json() == {"detail": "Category not found"}

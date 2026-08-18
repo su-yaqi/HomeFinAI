@@ -1,6 +1,6 @@
 # 数据模型
 
-> v0.9 当前数据核心为 `user + category + budget + transaction + aiconnection + OAuth 状态表 + aioperation + datajob + datajoberror`。`apitoken + apitokennonce` 仅作为废弃历史表保留，运行时不再使用。
+> v0.13 当前数据核心为 `user + category + budget + transaction + aiconnection + OAuth 状态表 + aioperation + datajob + datajoberror`。`apitoken + apitokennonce` 仅作为废弃历史表保留，运行时不再使用。
 
 ## 命名规范
 - 表名：由 SQLModel 根据类名推导；AI Connector 使用 `aiconnection`、`aiauthorizationdecision`、`aiauthorizationcode`、`airefreshtoken` 与 `aioperation`。
@@ -112,7 +112,7 @@ DataJob  1 ──── N DataJobError
 | created_at | timestamptz | 是 | 当前 UTC 时间 | 创建时间 |
 
 ### apitoken
-[废弃] 旧外部 Agent 调用凭证表。v0.9 迁移统一停用，应用没有创建、认证或管理入口，仅供升级影响审计和历史定位。
+[废弃] 旧外部 Agent 调用凭证表。v0.13 迁移统一停用，应用没有创建、认证或管理入口，仅供升级影响审计和历史定位。
 
 | 字段 | 类型 | 可空 | 默认值 | 说明 |
 |------|------|------|--------|------|
@@ -128,7 +128,7 @@ DataJob  1 ──── N DataJobError
 | created_at | timestamptz | 是 | 当前 UTC 时间 | 创建时间 |
 
 ### apitokennonce
-[废弃] 旧 Agent HMAC 防重放表。v0.9 不再新增记录，后续物理清理需独立迁移和备份确认。
+[废弃] 旧 Agent HMAC 防重放表。v0.13 不再新增记录，后续物理清理需独立迁移和备份确认。
 
 | 字段 | 类型 | 可空 | 默认值 | 说明 |
 |------|------|------|--------|------|

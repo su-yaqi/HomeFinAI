@@ -53,7 +53,7 @@ sequenceDiagram
 
 **正常流程**
 1. 客户端访问标准发现元数据和 `/mcp` HTTP 入口。
-2. HomeFin 以 MCP `2026-07-28` 作为 v0.9 基线，暴露 Server Discovery、Tools List 和 Tools Call 能力。
+2. HomeFin 以 MCP `2026-07-28` 作为 v0.13 基线，暴露 Server Discovery、Tools List 和 Tools Call 能力。
 3. `/mcp` 使用无协议会话的 HTTP 请求模型；每次请求独立完成协议版本、客户端信息、身份和 Scope 校验。
 4. 工具的输入与输出都使用 JSON Schema 2020-12，并返回结构化结果。
 5. `tools/list` 只返回当前连接已授权 Scope 对应的工具。
@@ -73,7 +73,7 @@ sequenceDiagram
 
 **正常流程**
 1. 客户端通过标准受保护资源和授权服务器元数据发现 OAuth 端点。
-2. 客户端使用 Authorization Code + PKCE 发起授权，并通过 Client ID Metadata Document 提供可验证的客户端身份和精确回调地址；v0.9 不实现动态客户端注册（DCR），CIMD 是唯一客户端注册路径。
+2. 客户端使用 Authorization Code + PKCE 发起授权，并通过 Client ID Metadata Document 提供可验证的客户端身份和精确回调地址；v0.13 不实现动态客户端注册（DCR），CIMD 是唯一客户端注册路径。
 3. 未登录用户先完成 HomeFin 登录和可选 MFA，再进入授权确认页。
 4. 页面展示客户端名称、回调域名、申请 Scope 和每项权限说明。
 5. 用户同意后创建 `aiconnection`，签发一次性短期授权码；客户端交换短期 Access Token 和轮换式 Refresh Token。
@@ -121,12 +121,12 @@ sequenceDiagram
 - 非 loopback MCP URL 必须使用 HTTPS，证书链和主机名必须被该 Mac 信任；不接受仅 Docker 网络内可见的地址、自签名但未安装信任的证书或自动创建的公网隧道。
 - MCP Server 初始化说明前 512 个字符必须自包含地说明 HomeFin、金额单位、业务时区、写操作确认和禁止跨用户访问，避免客户端只读取截断内容时丢失关键约束。
 - HomeFin 的 `input_required` 是写工具的普通结构化结果，包含签名 `confirmation_id`，不要求 Codex 提供服务器反向请求通道；它仍是独立于 Codex 工具审批的服务端安全门槛。
-- 单个同步工具调用应在 Codex 默认 60 秒工具超时内完成；需要更长时间的能力不进入 v0.9 工具集。
+- 单个同步工具调用应在 Codex 默认 60 秒工具超时内完成；需要更长时间的能力不进入 v0.13 工具集。
 
 **异常处理**
 - Codex CIMD 元数据或 loopback 回调不符合上述规则时明确终止 OAuth，不切换到 DCR、长期 Token 或旧 Agent API。
 - Mac 无法访问 MCP URL、TLS 不受信任或浏览器无法回到 loopback listener 时，连接保持未授权并给出可诊断错误，不自动更改网络暴露范围。
-- 当前 Codex 版本若不能保留结构化结果并用同一工具完成第二阶段确认，写工具验收失败并阻止 v0.9 发布；不得通过取消服务端确认绕过。
+- 当前 Codex 版本若不能保留结构化结果并用同一工具完成第二阶段确认，写工具验收失败并阻止 v0.13 发布；不得通过取消服务端确认绕过。
 
 ### 功能点 4：连接查看、撤销与失效
 

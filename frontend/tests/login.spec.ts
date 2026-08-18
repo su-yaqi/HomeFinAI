@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test"
 import { firstSuperuser, firstSuperuserPassword } from "./config.ts"
 import { randomPassword } from "./utils/random.ts"
+import { toLoginName } from "./utils/user.ts"
 
 test.use({ storageState: { cookies: [], origins: [] } })
 
@@ -23,6 +24,7 @@ test("Inputs are visible, empty and editable", async ({ page }) => {
 
   await verifyInput(page, "login-name-input")
   await verifyInput(page, "password-input")
+  await verifyInput(page, "mfa-code-input")
 })
 
 test("Log In button is visible", async ({ page }) => {
@@ -34,11 +36,7 @@ test("Log In button is visible", async ({ page }) => {
 test("Log in with valid login name and password", async ({ page }) => {
   await page.goto("/login")
 
-  await fillForm(
-    page,
-    firstSuperuser.split("@", 1)[0] ?? firstSuperuser,
-    firstSuperuserPassword,
-  )
+  await fillForm(page, toLoginName(firstSuperuser), firstSuperuserPassword)
   await page.getByRole("button", { name: "Log In" }).click()
 
   await page.waitForURL("/")
@@ -48,24 +46,20 @@ test("Log in with valid login name and password", async ({ page }) => {
   ).toBeVisible()
 })
 
-test("Log in with invalid login name", async ({ page }) => {
+test("Login name is required", async ({ page }) => {
   await page.goto("/login")
 
-  await fillForm(page, "invalidemail", firstSuperuserPassword)
+  await fillForm(page, "", firstSuperuserPassword)
   await page.getByRole("button", { name: "Log In" }).click()
 
-  await expect(page.getByText("Incorrect login name or password")).toBeVisible()
+  await expect(page.getByText("Login name is required")).toBeVisible()
 })
 
 test("Log in with invalid password", async ({ page }) => {
   const password = randomPassword()
 
   await page.goto("/login")
-  await fillForm(
-    page,
-    firstSuperuser.split("@", 1)[0] ?? firstSuperuser,
-    password,
-  )
+  await fillForm(page, toLoginName(firstSuperuser), password)
   await page.getByRole("button", { name: "Log In" }).click()
 
   await expect(page.getByText("Incorrect login name or password")).toBeVisible()
@@ -74,11 +68,7 @@ test("Log in with invalid password", async ({ page }) => {
 test("Successful log out", async ({ page }) => {
   await page.goto("/login")
 
-  await fillForm(
-    page,
-    firstSuperuser.split("@", 1)[0] ?? firstSuperuser,
-    firstSuperuserPassword,
-  )
+  await fillForm(page, toLoginName(firstSuperuser), firstSuperuserPassword)
   await page.getByRole("button", { name: "Log In" }).click()
 
   await page.waitForURL("/")
@@ -88,18 +78,14 @@ test("Successful log out", async ({ page }) => {
   ).toBeVisible()
 
   await page.getByTestId("user-menu").click()
-  await page.getByRole("menuitem", { name: "Log out" }).click()
+  await page.getByRole("menuitem", { name: "Log Out" }).click()
   await page.waitForURL("/login")
 })
 
 test("Logged-out user cannot access protected routes", async ({ page }) => {
   await page.goto("/login")
 
-  await fillForm(
-    page,
-    firstSuperuser.split("@", 1)[0] ?? firstSuperuser,
-    firstSuperuserPassword,
-  )
+  await fillForm(page, toLoginName(firstSuperuser), firstSuperuserPassword)
   await page.getByRole("button", { name: "Log In" }).click()
 
   await page.waitForURL("/")
@@ -109,7 +95,7 @@ test("Logged-out user cannot access protected routes", async ({ page }) => {
   ).toBeVisible()
 
   await page.getByTestId("user-menu").click()
-  await page.getByRole("menuitem", { name: "Log out" }).click()
+  await page.getByRole("menuitem", { name: "Log Out" }).click()
   await page.waitForURL("/login")
 
   await page.goto("/settings")
@@ -137,7 +123,7 @@ test("Redirects to /login when token user no longer exists", async ({
     `${apiBaseUrl}/api/v1/login/access-token`,
     {
       form: {
-        username: firstSuperuser.split("@", 1)[0] ?? firstSuperuser,
+        username: toLoginName(firstSuperuser),
         password: firstSuperuserPassword,
       },
     },
@@ -151,6 +137,7 @@ test("Redirects to /login when token user no longer exists", async ({
     },
     data: {
       email,
+      login_name: toLoginName(email),
       password,
       full_name: "Deleted User",
     },
@@ -159,9 +146,7 @@ test("Redirects to /login when token user no longer exists", async ({
   const createdUser = await createUserResponse.json()
 
   await page.goto("/login")
-  await page
-    .getByTestId("login-name-input")
-    .fill(email.split("@", 1)[0] ?? email)
+  await page.getByTestId("login-name-input").fill(toLoginName(email))
   await page.getByTestId("password-input").fill(password)
   await page.getByRole("button", { name: "Log In" }).click()
   await page.waitForURL("/")

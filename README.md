@@ -42,31 +42,62 @@ HomeFin 是一个面向个人和家庭场景的全栈财务管理系统，提供
 
 ### Start with Docker Compose
 
-This is the fastest way to run the full stack locally:
+Use the repository entrypoint so each worktree gets a stable project name and
+deterministic port block:
 
 ```bash
-docker compose up -d --build
+make dev-up
 ```
 
-The local override is wired for branch-aware development:
+The default `DEV_SLOT=0` instance uses:
+
+- Frontend: `http://127.0.0.1:21000`
+- Backend API: `http://127.0.0.1:21001`
+- Swagger UI: `http://127.0.0.1:21001/docs`
+
+Run another worktree or instance with a different slot:
+
+```bash
+make dev-up DEV_SLOT=1
+```
+
+Each slot reserves 20 ports. `DEV_SLOT=1` therefore uses frontend `21020` and
+backend `21021`. See all addresses before startup with:
+
+```bash
+make dev-env DEV_SLOT=1
+```
+
+The local environment is wired for branch-aware development:
 
 - `backend` and `frontend` both mount the current workspace into the container.
 - Restarting the local containers after switching branches makes them read the new branch files immediately.
 - `backend` starts through `uv run` against the currently mounted code and `frontend` re-runs `bun install` on startup, so branch-level dependency changes are picked up too.
+- Only frontend and backend are exposed by default; PostgreSQL stays on the Compose network.
+- Adminer, Mailcatcher and Playwright UI are enabled only through their dedicated commands.
 
 If you switch branches while the stack is already running, restart the app containers:
 
 ```bash
-docker compose restart prestart backend frontend
+make dev-restart
 ```
 
-After startup, open:
+Optional tools:
 
-- Frontend: `http://<frontend-host>:<frontend-port>`
-- Backend API: `http://<api-host>:<api-port>`
-- Swagger UI: `http://<api-host>:<api-port>/docs`
-- Adminer: `http://<admin-host>:<admin-port>`
-- MailCatcher: `http://<mail-host>:<mail-port>`
+```bash
+make adminer-up
+make mail-up
+make playwright-ui
+```
+
+Stop only the selected HomeFin instance without deleting its database volume:
+
+```bash
+make dev-down
+```
+
+The complete port map, conflict behavior and multi-worktree rules are documented
+in [docs/local-development.md](docs/local-development.md).
 
 ## Local Development
 
@@ -112,10 +143,11 @@ uv run bash scripts/tests-start.sh
 
 ### Full stack verification
 
-Run the Docker-based integration test flow:
+Run isolated Docker-based verification projects:
 
 ```bash
-bash scripts/test.sh
+make test-backend
+make test-e2e
 ```
 
 ## Project Structure
@@ -127,6 +159,8 @@ HomeFin/
 ├── context/        # Living product, API, schema, UI, and changelog documentation
 ├── docs/           # Development and deployment documents
 ├── scripts/        # Utility scripts such as test and client generation
+├── AGENTS.md        # Repository safety, risk, and completion rules
+├── Makefile         # Stable local development and test entrypoints
 ├── compose.yml
 ├── compose.override.yml
 └── README.md
@@ -137,6 +171,8 @@ HomeFin/
 - Backend guide: [backend/README.md](backend/README.md)
 - Frontend guide: [frontend/README.md](frontend/README.md)
 - Engineering conventions: [docs/development-guide.md](docs/development-guide.md)
+- Development workflow: [docs/development-workflow.md](docs/development-workflow.md)
+- Local multi-instance development: [docs/local-development.md](docs/local-development.md)
 - Intranet deployment: [docs/intranet-production-validation-deployment.md](docs/intranet-production-validation-deployment.md)
 - Product context: [context/readme.md](context/readme.md)
 - HomeFin MCP / AI Agent integration: [context/modules/ai-connector/agent-integration-guide.md](context/modules/ai-connector/agent-integration-guide.md)
@@ -170,7 +206,11 @@ The implemented product state and version evolution are tracked in:
 
 ## Contributing
 
-Issues and pull requests are welcome. Before making larger changes, it is recommended to read the engineering conventions and current context docs first so new work stays aligned with the existing architecture and product direction.
+Issues and pull requests are welcome. Before changing the repository, read
+[AGENTS.md](AGENTS.md), the
+[development workflow](docs/development-workflow.md), the engineering
+conventions, and the current context docs. Use `make change-plan` to review the
+minimum S/M/H risk and `make change-check` before declaring the work complete.
 
 ## License
 

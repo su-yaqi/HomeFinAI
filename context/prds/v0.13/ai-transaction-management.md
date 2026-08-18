@@ -184,7 +184,7 @@ flowchart TD
 
 每个新增/修改页面：
 - 无独立 HomeFin 页面。
-- v0.9 不提供 AI 调用审计详情页；Settings 连接列表仅更新最后使用时间。
+- v0.13 不提供 AI 调用审计详情页；Settings 连接列表仅更新最后使用时间。
 
 导航影响：
 - 不影响 HomeFin 导航结构。

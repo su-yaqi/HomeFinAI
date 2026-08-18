@@ -3,14 +3,14 @@
 ## 4.1 目标声明
 
 ### 背景
-v0.9 建立 MCP / OAuth AI Connector 后，继续保留 Agent REST API、管理员 API Token/HMAC 页面和 `homefin-agent-api` Skill 会形成两套同定位能力，也会迫使团队同时维护两种身份、权限、协议和文档。旧链路应在新能力通过验收后整体退役，而不是改名或长期兼容。
+v0.13 建立 MCP / OAuth AI Connector 后，继续保留 Agent REST API、管理员 API Token/HMAC 页面和 `homefin-agent-api` Skill 会形成两套同定位能力，也会迫使团队同时维护两种身份、权限、协议和文档。旧链路应在新能力通过验收后整体退役，而不是改名或长期兼容。
 
 ### 目标
 - 移除全部 `/api/v1/agent/*` 路由及其专用鉴权、HMAC 和 Nonce 运行时逻辑。
 - 移除管理员 API Token CRUD、页面、导航、生成客户端代码和相关测试。
 - 删除仓库内 `skills/homefin-agent-api` 及其本地配置约定。
 - 在升级前明确识别仍在使用的旧 Token，并要求部署方确认破坏性切换。
-- v0.9 发布后只保留 MCP / AI Connector 作为 HomeFin AI 接入能力。
+- v0.13 发布后只保留 MCP / AI Connector 作为 HomeFin AI 接入能力。
 
 ### 不在范围内
 - 不保留旧接口代理、兼容适配器、长期 410 Stub 或把旧 Token 自动转换为 OAuth 连接。
@@ -34,7 +34,7 @@ v0.9 建立 MCP / OAuth AI Connector 后，继续保留 Agent REST API、管理�
 
 ```mermaid
 flowchart TD
-    A["准备发布 v0.9"] --> B["扫描旧 Token 数量、状态和 last_used_at"]
+    A["准备发布 v0.13"] --> B["扫描旧 Token 数量、状态和 last_used_at"]
     B --> C{"是否存在仍启用或近期使用的 Token"}
     C -- 是 --> D["输出影响报告并要求部署方明确确认"]
     C -- 否 --> E["继续退役检查"]
@@ -43,13 +43,13 @@ flowchart TD
     F -- 是 --> E
     E --> H["确认新 MCP 连接和全部工具验收通过"]
     H --> I["移除旧路由、页面、Skill 并停用旧 Token"]
-    I --> J["发布仅包含 MCP 的 v0.9"]
+    I --> J["发布仅包含 MCP 的 v0.13"]
 ```
 
 ### 功能点 1：升级前影响审计与发布门禁
 
 **正常流程**
-1. v0.9 部署前读取旧 `apitoken`，统计总数、启用数、过期数和最后使用时间。
+1. v0.13 部署前读取旧 `apitoken`，统计总数、启用数、过期数和最后使用时间。
 2. 输出不包含明文 Token、Hash 或 Secret 的影响报告。
 3. 若存在启用 Token 或设定观察期内使用过的 Token，部署流程要求操作人明确确认这些集成将永久失效。
 4. 新 Connector 的连接授权、只读、交易、预算和分类工具全部通过验收后，才允许继续发布。
@@ -76,10 +76,10 @@ flowchart TD
 **边界条件**
 - 只退役 `/api/v1/agent/*` 和 `/api/v1/system/api-tokens/*`，普通用户财务 API 保持不变。
 - 旧 Token 不能作为 MCP OAuth Token、授权码、Refresh Token 或连接导入来源。
-- v0.9 发布包中不得保留可重新启用旧 Token 的管理接口。
+- v0.13 发布包中不得保留可重新启用旧 Token 的管理接口。
 
 **异常处理**
-- 迁移无法停用全部旧 Token 时停止升级，不带着部分有效凭证启动 v0.9。
+- 迁移无法停用全部旧 Token 时停止升级，不带着部分有效凭证启动 v0.13。
 - 旧路径在发布后按路由不存在处理，不转发到 MCP，也不尝试猜测对应工具。
 
 ### 功能点 3：移除前端页面、Skill 和配置约定
@@ -103,7 +103,7 @@ flowchart TD
 ### 功能点 4：废弃数据保留与后续物理清理边界
 
 **正常流程**
-1. v0.9 停止向 `apitoken` 和 `apitokennonce` 写入新数据。
+1. v0.13 停止向 `apitoken` 和 `apitokennonce` 写入新数据。
 2. 表及历史记录暂时保留，用于升级审计和必要的问题定位。
 3. 当前态数据模型文档将两张表标记为 `[废弃]`，注明没有运行时入口。
 4. 后续版本如需物理删表，必须单独设计迁移、完成备份并再次获得确认。
@@ -132,7 +132,7 @@ flowchart TD
 调整已有字段说明（字段本身不变，但行为/值域在本次需求中有扩展）：
 | 表名 | 字段名 | 调整说明 |
 |------|------|------|
-| `apitoken` | `is_active` | v0.9 升级时统一设为 `false`，且不再存在重新启用入口 |
+| `apitoken` | `is_active` | v0.13 升级时统一设为 `false`，且不再存在重新启用入口 |
 | `apitoken` | `last_used_at` | 仅用于升级前影响审计，不再由运行时更新 |
 
 废弃字段（保留字段本身，说明中标注 [废弃]）：
@@ -166,11 +166,11 @@ flowchart TD
 ## 4.6 验收标准
 
 - [ ] 发布门禁会报告旧 Token 使用情况，存在活跃或近期使用 Token 时必须由部署方明确确认，未确认则停止发布。
-- [ ] v0.9 发布前，MCP 连接、只读、交易、预算和分类能力全部通过验收。
+- [ ] v0.13 发布前，MCP 连接、只读、交易、预算和分类能力全部通过验收。
 - [ ] `/api/v1/agent/*` 和 `/api/v1/system/api-tokens/*` 不再注册，也不存在到 MCP 的代理或兼容转发。
 - [ ] 所有旧 `apitoken` 在升级时被停用，旧 Token 不能调用普通 API 或 MCP。
 - [ ] `/system/api-tokens` 页面和管理员导航被移除，Settings 中只保留 AI Connections。
 - [ ] `skills/homefin-agent-api`、示例配置和 `.homefin-agent-api.json` 约定被删除，不创建等价改名 Skill。
 - [ ] OpenAPI Client、前后端测试和当前态文档不再把 Agent API 或 API Token 描述为可用能力。
-- [ ] `apitoken` 与 `apitokennonce` 表在 v0.9 仅作为废弃历史数据保留，运行时没有读写入口。
+- [ ] `apitoken` 与 `apitokennonce` 表在 v0.13 仅作为废弃历史数据保留，运行时没有读写入口。
 - [ ] 若退役迁移或影响审计失败，升级会停止并报告，不通过手工删表、兼容代理或无确认继续发布绕过问题。

@@ -1,0 +1,9 @@
+services:
+  mailcatcher:
+    ports:
+      - target: 1080
+        published: "${HOMEFIN_MAIL_UI_PORT:-21004}"
+        host_ip: 127.0.0.1
+      - target: 1025
+        published: "${HOMEFIN_MAIL_SMTP_PORT:-21005}"
+        host_ip: 127.0.0.1

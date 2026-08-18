@@ -1,8 +1,8 @@
+name: "homefin-dev-${DEV_SLOT:-0}"
+
 services:
   db:
     restart: "no"
-    ports:
-      - "5432:5432"
 
   prestart:
     restart: "no"
@@ -20,7 +20,9 @@ services:
   backend:
     restart: "no"
     ports:
-      - "8000:8000"
+      - target: 8000
+        published: "${HOMEFIN_BACKEND_PORT:-21001}"
+        host_ip: 127.0.0.1
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -47,17 +49,21 @@ services:
       SMTP_PORT: "1025"
       SMTP_TLS: "false"
       EMAILS_FROM_EMAIL: noreply@example.com
+      FRONTEND_HOST: "${HOMEFIN_FRONTEND_URL:-http://127.0.0.1:21000}"
+      BACKEND_CORS_ORIGINS: "${HOMEFIN_FRONTEND_URL:-http://127.0.0.1:21000}"
 
   frontend:
     restart: "no"
     ports:
-      - "5173:5173"
+      - target: 5173
+        published: "${HOMEFIN_FRONTEND_PORT:-21000}"
+        host_ip: 127.0.0.1
     build:
       context: .
       dockerfile: frontend/Dockerfile
       target: build-stage
       args:
-        - VITE_API_URL=http://localhost:8000
+        - VITE_API_URL=${HOMEFIN_BACKEND_URL:-http://127.0.0.1:21001}
         - NODE_ENV=development
     working_dir: /app/frontend
     command:
@@ -69,7 +75,7 @@ services:
       - frontend-node-modules:/app/node_modules
       - frontend-node-modules-app:/app/frontend/node_modules
     environment:
-      VITE_API_URL: http://localhost:8000
+      VITE_API_URL: "${HOMEFIN_BACKEND_URL:-http://127.0.0.1:21001}"
     develop:
       watch:
         - path: ./frontend
@@ -85,20 +91,26 @@ services:
   adminer:
     image: adminer
     restart: "no"
+    profiles:
+      - adminer
     depends_on:
       - db
     environment:
       - ADMINER_DESIGN=pepa-linha-dark
     ports:
-      - "8080:8080"
+      - target: 8080
+        published: "${HOMEFIN_ADMINER_PORT:-21003}"
+        host_ip: 127.0.0.1
 
   mailcatcher:
     image: schickling/mailcatcher
-    ports:
-      - "1080:1080"
-      - "1025:1025"
+    profiles:
+      - mail
+      - playwright
 
   playwright:
+    profiles:
+      - playwright
     build:
       context: .
       dockerfile: frontend/Dockerfile.playwright
@@ -115,14 +127,24 @@ services:
       - PLAYWRIGHT_HTML_HOST=0.0.0.0
       - FIRST_SUPERUSER=${FIRST_SUPERUSER:-admin@example.com}
       - FIRST_SUPERUSER_PASSWORD=${FIRST_SUPERUSER_PASSWORD:-changethis-local-admin-password}
-      - CI=${CI}
+      - CI=${CI:-}
     volumes:
       - ./frontend/blob-report:/app/frontend/blob-report
       - ./frontend/test-results:/app/frontend/test-results
-    ports:
-      - "9323:9323"
 
 volumes:
+  app-db-data:
+    labels:
+      com.homefin.dev.workspace: "${HOMEFIN_WORKSPACE_ID:-direct-compose}"
+  app-data-jobs-data:
+    labels:
+      com.homefin.dev.workspace: "${HOMEFIN_WORKSPACE_ID:-direct-compose}"
   uv-cache:
+    labels:
+      com.homefin.dev.workspace: "${HOMEFIN_WORKSPACE_ID:-direct-compose}"
   frontend-node-modules:
+    labels:
+      com.homefin.dev.workspace: "${HOMEFIN_WORKSPACE_ID:-direct-compose}"
   frontend-node-modules-app:
+    labels:
+      com.homefin.dev.workspace: "${HOMEFIN_WORKSPACE_ID:-direct-compose}"

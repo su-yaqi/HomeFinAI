@@ -56,9 +56,31 @@
 - 兼容性边界：保留 `/users/signup`、`/login`、`/logout`、`/admin` 等兼容入口，但不再作为主路径。
 
 ## 部署拓扑
-- 本地开发仍以 Docker Compose 为主，后端测试可通过 `docker compose run --no-deps ...` 挂载本地 `backend/` 执行。
-- 前端可在本地通过 Vite 独立运行，也可构建进 Compose 栈。
-- 邮件链路和 PostgreSQL 仍由 Compose 环境提供。
+- 本地 Docker 开发通过根目录 `Makefile` 和 `scripts/dev.sh` 统一进入。Compose project
+  固定为 `${DEV_PROJECT}-dev-${DEV_SLOT}`，每个 slot 从 `DEV_PORT_BASE` 起按 20
+  个端口分块，避免多个 worktree 共用项目名、网络、卷或镜像标签。
+- 启动前会核对同名项目的容器和保留卷 worktree 归属，并检测当前 slot 的宿主机
+  入口端口。冲突时报告占用容器、卷、Compose service 或宿主机监听进程后失败，
+  不自动停止其他项目。
+- 默认开发栈仅向 `127.0.0.1` 暴露 Frontend 与 Backend；PostgreSQL 只保留 Compose
+  内网访问。Adminer、Mailcatcher 宿主机端口和 Playwright UI 通过独立 profile
+  按需启用。
+- Backend 与 E2E 测试使用当前 slot 派生出的独立 Compose project，且不发布前后端
+  宿主机端口；测试结束只清理对应测试项目的容器、网络和卷。
+- 内网正式部署继续显式使用 `compose.yml + compose.intranet.yml`，保持 HTTP、
+  Frontend `8080`、Backend `8000`、按需 Adminer `8081` 以及正式持久化和备份语义，
+  不继承本地 slot 或开发 profile。
+- 发布运行时额外加载 `compose.release.yml`，取消前后端的构建定义，只接受
+  `sha256` digest 固定的 GHCR 镜像。前端镜像使用同源 `/api`，由容器内 Nginx
+  转发到 Backend，因此 staging 与 production 晋级同一镜像，不写入环境专属 API
+  地址。
+- `main` 的单一 CI 门禁通过后才构建镜像；staging 消费该次构建输出的 digest。
+  Production Release 必须指向 `main` 提交，并找到同一 SHA 的完整成功 CI/staging
+  运行、下载该运行保存的 digest 清单后才能进入 GitHub `production` Environment
+  批准，不能在发布时重新解析可移动 tag。
+- 发布脚本按“拉取不可变镜像 -> 启动并检查数据库 -> 宿主机预迁移备份 -> 单次迁移
+  -> 应用切换 -> HTTP 健康检查”执行。迁移失败不切换应用；应用健康失败只回退上一组
+  镜像，不自动降级数据库 schema。
 
 ## 非功能性约束
 | 类型 | 要求 |

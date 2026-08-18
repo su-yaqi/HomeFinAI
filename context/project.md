@@ -50,4 +50,8 @@ HomeFin 是一个从 FastAPI 全栈模板演进而来的家庭记账与财务管
 | v0.6 | 已完成 | 补齐用户 MFA 自助管理、管理员 MFA 重置、Agent handler 候选查询，以及 API Token 删除与更稳健的 Agent 调用链路 |
 | v0.7 | 已完成 | 完成全站移动端响应式改造，为财务与管理列表提供移动卡片视图，并建立 Chrome、Safari 和桌面端响应式回归基线 |
 | v0.8 | 已完成 | 增加 Token 用途与版本隔离、Agent HMAC 防重放、分类数据库约束、账户关联完整性、数据任务资源边界和看板业务时区 |
-| v0.9 | 开发中 | 以 MCP/OAuth AI Connector 替代 Agent API、手工 API Token 和专用 Skill；协议与自动化测试已完成，待真实 Codex Desktop 验收 |
+| v0.9 | 已完成 | 建立确定性的本地多实例 Compose 项目与端口契约、冲突门禁、按需工具 profile、隔离测试栈及统一 Make 入口 |
+| v0.10 | 已完成 | 建立 S/M/H 风险分级、context impact、完成定义、PR 证据模板和本地规则检查入口 |
+| v0.11 | 已完成 | 建立按风险选择验证范围的统一 CI required gate，并修复阻塞门禁的既有回归测试债务 |
+| v0.12 | 已完成 | 建立不可变镜像晋级、staging/production 环境保护和失败可回滚的安全发布链路 |
+| v0.13 | 开发中 | 以 MCP/OAuth AI Connector 替代 Agent API、手工 API Token 和专用 Skill；协议、自动化测试及真实 Codex Desktop 写入验收已完成，待合并后发布验证 |

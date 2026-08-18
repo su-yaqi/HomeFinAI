@@ -14,7 +14,7 @@ import "./index.css"
 import { routeTree } from "./routeTree.gen"
 import { isAuthSessionInvalid } from "./utils"
 
-OpenAPI.BASE = import.meta.env.VITE_API_URL
+OpenAPI.BASE = import.meta.env.VITE_API_URL || ""
 OpenAPI.TOKEN = async () => {
   return localStorage.getItem("access_token") || ""
 }
