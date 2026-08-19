@@ -1,14 +1,10 @@
 import uuid
-from typing import Any
 from datetime import date, datetime, timezone
 from enum import Enum, IntEnum
+from typing import Any, cast
 
-from pydantic import EmailStr
-from pydantic import ConfigDict
-from pydantic import field_validator
-from pydantic import model_validator
-from sqlalchemy import Column
-from sqlalchemy import DateTime
+from pydantic import EmailStr, field_validator, model_validator
+from sqlalchemy import CheckConstraint, Column, DateTime, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -30,12 +26,13 @@ class UserBase(SQLModel):
     def populate_login_name(cls, data: object) -> object:
         if not isinstance(data, dict):
             return data
-        if data.get("login_name"):
-            return data
-        email = data.get("email")
+        values = cast(dict[str, Any], data)
+        if values.get("login_name"):
+            return values
+        email = values.get("email")
         if isinstance(email, str) and "@" in email:
-            data["login_name"] = email.split("@", 1)[0]
-        return data
+            values["login_name"] = email.split("@", 1)[0]
+        return values
 
 
 # Properties to receive via API on creation
@@ -53,7 +50,7 @@ class UserRegister(SQLModel):
 # Properties to receive via API on update, all are optional
 class UserUpdate(UserBase):
     email: EmailStr | None = Field(default=None, max_length=255)  # type: ignore[assignment]
-    login_name: str | None = Field(default=None, max_length=100)
+    login_name: str | None = Field(default=None, max_length=100)  # type: ignore[assignment]
     password: str | None = Field(default=None, min_length=8, max_length=128)
 
 
@@ -73,11 +70,11 @@ class User(UserBase, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     hashed_password: str
     mfa_secret: str | None = Field(default=None, max_length=255)
+    auth_version: int = Field(default=0, nullable=False)
     created_at: datetime | None = Field(
         default_factory=get_datetime_utc,
         sa_type=DateTime(timezone=True),  # type: ignore
     )
-    items: list["Item"] = Relationship(back_populates="owner", cascade_delete=True)
     categories: list["Category"] = Relationship(
         back_populates="owner", cascade_delete=True
     )
@@ -91,7 +88,12 @@ class User(UserBase, table=True):
         back_populates="handler_user",
         sa_relationship_kwargs={"foreign_keys": "[Transaction.handler_user_id]"},
     )
-    api_tokens: list["ApiToken"] = Relationship(back_populates="creator")
+    api_tokens: list["ApiToken"] = Relationship(
+        back_populates="creator", cascade_delete=True
+    )
+    ai_connections: list["AIConnection"] = Relationship(
+        back_populates="user", cascade_delete=True
+    )
 
 
 # Properties to return via API, id is always required
@@ -116,35 +118,6 @@ class HandlerUserOption(SQLModel):
 class HandlerUsersPublic(SQLModel):
     data: list[HandlerUserOption]
     count: int
-
-
-# Shared properties
-class ItemBase(SQLModel):
-    title: str = Field(min_length=1, max_length=255)
-    description: str | None = Field(default=None, max_length=255)
-
-
-# Properties to receive on item creation
-class ItemCreate(ItemBase):
-    pass
-
-
-# Properties to receive on item update
-class ItemUpdate(ItemBase):
-    title: str | None = Field(default=None, min_length=1, max_length=255)  # type: ignore[assignment]
-
-
-# Database model, database table inferred from class name
-class Item(ItemBase, table=True):
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    created_at: datetime | None = Field(
-        default_factory=get_datetime_utc,
-        sa_type=DateTime(timezone=True),  # type: ignore
-    )
-    owner_id: uuid.UUID = Field(
-        foreign_key="user.id", nullable=False, ondelete="CASCADE"
-    )
-    owner: User | None = Relationship(back_populates="items")
 
 
 class BudgetPeriod(IntEnum):
@@ -181,8 +154,18 @@ class CategoryUpdate(SQLModel):
 
 
 class Category(CategoryBase, table=True):
+    __table_args__ = (
+        UniqueConstraint("owner_id", "name", name="uq_category_owner_name"),
+        CheckConstraint(
+            "color ~ '^#[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$'",
+            name="ck_category_color_hex",
+        ),
+    )
+
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    owner_id: uuid.UUID = Field(foreign_key="user.id", nullable=False, ondelete="CASCADE")
+    owner_id: uuid.UUID = Field(
+        foreign_key="user.id", nullable=False, ondelete="CASCADE"
+    )
     created_at: datetime | None = Field(
         default_factory=get_datetime_utc,
         sa_type=DateTime(timezone=True),  # type: ignore
@@ -219,10 +202,12 @@ class BudgetUpdate(SQLModel):
 
 
 class Budget(BudgetBase, table=True):
-    period: int = Field(nullable=False)
+    period: int = Field(nullable=False)  # type: ignore[assignment]
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     amount_cents: int = Field(nullable=False)
-    owner_id: uuid.UUID = Field(foreign_key="user.id", nullable=False, ondelete="CASCADE")
+    owner_id: uuid.UUID = Field(
+        foreign_key="user.id", nullable=False, ondelete="CASCADE"
+    )
     created_at: datetime | None = Field(
         default_factory=get_datetime_utc,
         sa_type=DateTime(timezone=True),  # type: ignore
@@ -276,16 +261,15 @@ def _normalize_transaction_detail(value: Any) -> dict[str, Any] | None:
 def _normalize_transaction_summary_fields(data: object) -> object:
     if not isinstance(data, dict):
         return data
-    if "summary" not in data and data.get("description"):
-        data["summary"] = data["description"]
-    if "description" not in data and data.get("summary"):
-        data["description"] = data["summary"]
-    return data
+    values = cast(dict[str, Any], data)
+    if "summary" not in values and values.get("description"):
+        values["summary"] = values["description"]
+    if "description" not in values and values.get("summary"):
+        values["description"] = values["summary"]
+    return values
 
 
 class TransactionBase(SQLModel):
-    model_config = ConfigDict(extra="ignore")
-
     category_id: uuid.UUID = Field(foreign_key="category.id")
     transaction_type: TransactionType
     budget_id: uuid.UUID | None = Field(default=None, foreign_key="budget.id")
@@ -314,8 +298,6 @@ class TransactionCreate(TransactionBase):
 
 
 class TransactionUpdate(SQLModel):
-    model_config = ConfigDict(extra="ignore")
-
     category_id: uuid.UUID | None = None
     transaction_type: TransactionType | None = None
     amount: float | None = Field(default=None, gt=0)
@@ -339,12 +321,14 @@ class TransactionUpdate(SQLModel):
 
 
 class Transaction(TransactionBase, table=True):
-    transaction_type: int = Field(nullable=False)
-    entry_status: int = Field(nullable=False)
+    transaction_type: int = Field(nullable=False)  # type: ignore[assignment]
+    entry_status: int = Field(nullable=False)  # type: ignore[assignment]
     handler_name: str | None = Field(default=None, max_length=100)
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     amount_cents: int = Field(nullable=False)
-    owner_id: uuid.UUID = Field(foreign_key="user.id", nullable=False, ondelete="CASCADE")
+    owner_id: uuid.UUID = Field(
+        foreign_key="user.id", nullable=False, ondelete="CASCADE"
+    )
     created_at: datetime | None = Field(
         default_factory=get_datetime_utc,
         sa_type=DateTime(timezone=True),  # type: ignore
@@ -376,24 +360,22 @@ class TransactionBatchEnter(SQLModel):
     ids: list[uuid.UUID] = Field(min_length=1)
 
 
-class ApiTokenBase(SQLModel):
+class ApiToken(SQLModel, table=True):
+    """Deprecated v0.9 history table; no runtime authentication or CRUD entrypoint."""
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     name: str = Field(min_length=1, max_length=100)
     expires_at: datetime | None = None
-
-
-class ApiTokenCreate(ApiTokenBase):
-    generate_secret: bool = False
-
-
-class ApiToken(ApiTokenBase, table=True):
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     token_prefix: str = Field(max_length=20)
     token_hash: str = Field(max_length=255)
     secret_hash: str | None = Field(default=None, max_length=255)
     is_active: bool = True
-    created_by: uuid.UUID = Field(foreign_key="user.id", nullable=False)
+    created_by: uuid.UUID = Field(
+        foreign_key="user.id", nullable=False, ondelete="CASCADE"
+    )
     last_used_at: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)  # type: ignore
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
     )
     created_at: datetime | None = Field(
         default_factory=get_datetime_utc,
@@ -402,24 +384,151 @@ class ApiToken(ApiTokenBase, table=True):
     creator: User | None = Relationship(back_populates="api_tokens")
 
 
-class ApiTokenPublic(ApiTokenBase):
+class ApiTokenNonce(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("token_id", "nonce", name="uq_apitokennonce_token_nonce"),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    token_id: uuid.UUID = Field(
+        foreign_key="apitoken.id", nullable=False, ondelete="CASCADE", index=True
+    )
+    nonce: str = Field(min_length=16, max_length=128)
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+
+class AIConnectionStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    REVOKED = "REVOKED"
+    REAUTH_REQUIRED = "REAUTH_REQUIRED"
+
+
+class AIConnection(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    user_id: uuid.UUID = Field(
+        foreign_key="user.id", nullable=False, ondelete="CASCADE", index=True
+    )
+    client_id: str = Field(max_length=500)
+    client_name: str = Field(max_length=255)
+    scopes: list[str] = Field(sa_column=Column(JSONB, nullable=False))
+    status: str = Field(default=AIConnectionStatus.ACTIVE.value, max_length=30)
+    auth_version: int = Field(nullable=False)
+    last_used_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    revoked_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    user: User | None = Relationship(back_populates="ai_connections")
+
+
+class AIAuthorizationCode(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    connection_id: uuid.UUID = Field(
+        foreign_key="aiconnection.id", nullable=False, ondelete="CASCADE", index=True
+    )
+    code_hash: str = Field(max_length=255, unique=True, index=True)
+    redirect_uri: str = Field(max_length=1000)
+    code_challenge: str = Field(max_length=255)
+    expires_at: datetime = Field(sa_type=DateTime(timezone=True))  # type: ignore
+    used_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+
+class AIAuthorizationDecision(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    request_jti: uuid.UUID = Field(unique=True, index=True)
+    user_id: uuid.UUID = Field(
+        foreign_key="user.id", nullable=False, ondelete="CASCADE", index=True
+    )
+    approved: bool = Field(nullable=False)
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+
+class AIRefreshToken(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    connection_id: uuid.UUID = Field(
+        foreign_key="aiconnection.id", nullable=False, ondelete="CASCADE", index=True
+    )
+    token_hash: str = Field(max_length=255, unique=True, index=True)
+    family_id: uuid.UUID = Field(nullable=False, index=True)
+    replaced_by_id: uuid.UUID | None = Field(
+        default=None, foreign_key="airefreshtoken.id", ondelete="SET NULL"
+    )
+    expires_at: datetime = Field(sa_type=DateTime(timezone=True))  # type: ignore
+    used_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    revoked_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+
+class AIOperation(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint(
+            "connection_id",
+            "tool_name",
+            "idempotency_key",
+            name="uq_aioperation_connection_tool_key",
+        ),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    connection_id: uuid.UUID = Field(
+        foreign_key="aiconnection.id", nullable=False, ondelete="CASCADE", index=True
+    )
+    tool_name: str = Field(max_length=100)
+    idempotency_key: str = Field(max_length=100)
+    request_hash: str = Field(max_length=255)
+    resource_type: str = Field(max_length=50)
+    resource_id: uuid.UUID | None = Field(default=None)
+    result_payload: dict[str, Any] = Field(sa_column=Column(JSONB, nullable=False))
+    expires_at: datetime = Field(sa_type=DateTime(timezone=True))  # type: ignore
+    created_at: datetime = Field(
+        default_factory=get_datetime_utc,
+        sa_type=DateTime(timezone=True),  # type: ignore
+    )
+
+
+class AIConnectionPublic(SQLModel):
     id: uuid.UUID
-    token_prefix: str
-    is_active: bool
-    created_by: uuid.UUID
+    client_id: str
+    client_name: str
+    scopes: list[str]
+    status: AIConnectionStatus
     last_used_at: datetime | None = None
-    created_at: datetime | None = None
+    revoked_at: datetime | None = None
+    created_at: datetime
 
 
-class ApiTokensPublic(SQLModel):
-    data: list[ApiTokenPublic]
+class AIConnectionsPublic(SQLModel):
+    data: list[AIConnectionPublic]
     count: int
-
-
-class ApiTokenSecretPublic(SQLModel):
-    token: str
-    secret: str | None = None
-    token_prefix: str
 
 
 class DataJobType(str, Enum):
@@ -444,7 +553,9 @@ class DataJobBase(SQLModel):
 
 class DataJob(DataJobBase, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    created_by: uuid.UUID = Field(foreign_key="user.id", nullable=False, ondelete="CASCADE")
+    created_by: uuid.UUID = Field(
+        foreign_key="user.id", nullable=False, ondelete="CASCADE"
+    )
     source_file_path: str | None = Field(default=None, max_length=500)
     result_file_path: str | None = Field(default=None, max_length=500)
     error_file_path: str | None = Field(default=None, max_length=500)
@@ -455,10 +566,12 @@ class DataJob(DataJobBase, table=True):
     progress_percent: int = 0
     failure_reason: str | None = Field(default=None, max_length=500)
     started_at: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)  # type: ignore
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
     )
     finished_at: datetime | None = Field(
-        default=None, sa_type=DateTime(timezone=True)  # type: ignore
+        default=None,
+        sa_type=DateTime(timezone=True),  # type: ignore
     )
     created_at: datetime | None = Field(
         default_factory=get_datetime_utc,
@@ -538,18 +651,6 @@ class DashboardPublic(SQLModel):
     budget_usage: list[DashboardBudgetUsage]
 
 
-# Properties to return via API, id is always required
-class ItemPublic(ItemBase):
-    id: uuid.UUID
-    owner_id: uuid.UUID
-    created_at: datetime | None = None
-
-
-class ItemsPublic(SQLModel):
-    data: list[ItemPublic]
-    count: int
-
-
 # Generic message
 class Message(SQLModel):
     message: str
@@ -564,6 +665,8 @@ class Token(SQLModel):
 # Contents of JWT token
 class TokenPayload(SQLModel):
     sub: str | None = None
+    typ: str | None = None
+    ver: int = 0
 
 
 class LoginRequest(SQLModel):

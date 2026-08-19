@@ -2,8 +2,9 @@ import { useQuery } from "@tanstack/react-query"
 import { createFileRoute } from "@tanstack/react-router"
 import { ArrowDownRight, ArrowUpRight, PiggyBank, Wallet } from "lucide-react"
 
+import { DashboardService } from "@/client"
+import { PageHeader } from "@/components/Common/PageHeader"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { homefinApi } from "@/features/homefin/api"
 
 export const Route = createFileRoute("/_layout/")({
   component: Dashboard,
@@ -19,7 +20,7 @@ export const Route = createFileRoute("/_layout/")({
 function Dashboard() {
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard"],
-    queryFn: homefinApi.readDashboard,
+    queryFn: DashboardService.readDashboard,
   })
 
   const summaryCards = [
@@ -54,14 +55,10 @@ function Dashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">
-          Financial Dashboard
-        </h1>
-        <p className="text-muted-foreground">
-          Track this month&apos;s cash flow, category mix, and budget usage.
-        </p>
-      </div>
+      <PageHeader
+        title="Financial Dashboard"
+        description="Track this month's cash flow, category mix, and budget usage."
+      />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map((card) => (
@@ -94,13 +91,13 @@ function Dashboard() {
             {(data?.trends ?? []).map((point) => (
               <div
                 key={point.month}
-                className="flex items-center justify-between rounded-lg border p-3"
+                className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[auto_1fr_1fr] sm:items-center"
               >
                 <div className="font-medium">{point.month}</div>
-                <div className="text-sm text-muted-foreground">
+                <div className="text-sm text-muted-foreground sm:text-right">
                   Income {formatCurrency(point.income)}
                 </div>
-                <div className="text-sm text-muted-foreground">
+                <div className="text-sm text-muted-foreground sm:text-right">
                   Expense {formatCurrency(point.expense)}
                 </div>
               </div>
@@ -121,7 +118,7 @@ function Dashboard() {
             {(data?.category_shares ?? []).map((item) => (
               <div
                 key={item.category_id}
-                className="flex items-center justify-between rounded-lg border p-3"
+                className="flex flex-col gap-1 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="font-medium">{item.category_name}</div>
                 <div className="text-sm text-muted-foreground">
@@ -156,7 +153,7 @@ function Dashboard() {
                 key={item.budget_id}
                 className="space-y-2 rounded-lg border p-3"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                   <div className="font-medium">{item.budget_name}</div>
                   <div className="text-sm text-muted-foreground">
                     {formatCurrency(item.used_amount)} /{" "}

@@ -1,7 +1,7 @@
 import logging
-from decimal import Decimal, ROUND_HALF_UP
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
 
@@ -135,24 +135,32 @@ def generate_new_account_email(
     return EmailData(html_content=html_content, subject=subject)
 
 
-def generate_password_reset_token(email: str) -> str:
+def generate_password_reset_token(email: str, *, auth_version: int = 0) -> str:
     delta = timedelta(hours=settings.EMAIL_RESET_TOKEN_EXPIRE_HOURS)
     now = datetime.now(timezone.utc)
     expires = now + delta
     exp = expires.timestamp()
     encoded_jwt = jwt.encode(
-        {"exp": exp, "nbf": now, "sub": email},
+        {
+            "exp": exp,
+            "nbf": now,
+            "sub": email,
+            "typ": security.PASSWORD_RESET_TOKEN_TYPE,
+            "ver": auth_version,
+        },
         settings.SECRET_KEY,
         algorithm=security.ALGORITHM,
     )
     return encoded_jwt
 
 
-def verify_password_reset_token(token: str) -> str | None:
+def verify_password_reset_token(token: str) -> tuple[str, int] | None:
     try:
         decoded_token = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[security.ALGORITHM]
         )
-        return str(decoded_token["sub"])
-    except InvalidTokenError:
+        if decoded_token.get("typ") != security.PASSWORD_RESET_TOKEN_TYPE:
+            return None
+        return str(decoded_token["sub"]), int(decoded_token.get("ver", -1))
+    except (InvalidTokenError, KeyError, TypeError, ValueError):
         return None

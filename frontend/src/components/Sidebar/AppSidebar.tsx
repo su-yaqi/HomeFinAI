@@ -2,7 +2,6 @@ import {
   Database,
   FolderTree,
   Home,
-  KeyRound,
   PiggyBank,
   ReceiptText,
   Users,
@@ -34,7 +33,6 @@ export function AppSidebar() {
     ? [
         ...baseItems,
         { icon: Users, title: "Accounts", path: "/system/accounts" },
-        { icon: KeyRound, title: "API Tokens", path: "/system/api-tokens" },
         {
           icon: Database,
           title: "Data Management",

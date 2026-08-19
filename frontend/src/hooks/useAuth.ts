@@ -27,7 +27,7 @@ const useAuth = () => {
 
   const login = async (data: LoginCredentials) => {
     const response = await LoginService.loginAccessToken({
-      formData: data as never,
+      formData: data,
     })
     localStorage.setItem("access_token", response.access_token)
   }
@@ -35,6 +35,12 @@ const useAuth = () => {
   const loginMutation = useMutation({
     mutationFn: login,
     onSuccess: () => {
+      const returnTo = sessionStorage.getItem("post_login_redirect")
+      sessionStorage.removeItem("post_login_redirect")
+      if (returnTo?.startsWith("/") && !returnTo.startsWith("//")) {
+        window.location.assign(returnTo)
+        return
+      }
       navigate({ to: "/" })
     },
     onError: handleError.bind(showErrorToast),

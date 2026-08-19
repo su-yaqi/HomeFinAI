@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+printf '%s\tbackend=%s\tfrontend=%s\n' \
+  "$*" \
+  "${HOMEFIN_BACKEND_IMAGE:-}" \
+  "${HOMEFIN_FRONTEND_IMAGE:-}" >>"${MOCK_DOCKER_LOG:?}"
+
+if [[ "$*" == "compose version" ]]; then
+  printf 'Docker Compose version v2.39.0\n'
+  exit 0
+fi
+
+if [[ "$*" == *" exec "* && "$*" == *" pg_dump "* ]]; then
+  if [[ "${MOCK_DEPLOY_MODE:-success}" == "backup-fail" ]]; then
+    exit 41
+  fi
+  printf 'verified mock PostgreSQL custom backup\n'
+  exit 0
+fi
+
+if [[ "${MOCK_DEPLOY_MODE:-success}" == "migration-fail" &&
+  "$*" == *" run "* &&
+  "$*" == *" prestart" ]]; then
+  exit 42
+fi

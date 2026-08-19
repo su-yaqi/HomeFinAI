@@ -1,0 +1,14 @@
+services:
+  prestart:
+    environment:
+      FRONTEND_HOST: http://localhost:5173
+      BACKEND_CORS_ORIGINS: http://localhost:5173
+
+  backend:
+    ports: !reset []
+    environment:
+      FRONTEND_HOST: http://localhost:5173
+      BACKEND_CORS_ORIGINS: http://localhost:5173
+
+  frontend:
+    ports: !reset []

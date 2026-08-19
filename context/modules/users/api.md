@@ -30,7 +30,9 @@
 - `email` 和 `login_name` 都要求唯一。
 - 管理员不能删除自己。
 - 管理员可直接重置任意账户密码。
+- 当前用户修改密码或管理员重置密码时会递增 `auth_version`，使该账户已有 Bearer、Session 和密码重置 Token 失效。
 - 当前用户启用 MFA 时必须提交当前 6 位验证码。
 - 当前用户和管理员的 MFA reset 都采用清空 `mfa_secret`。
 - 管理员可直接为任意账户执行 MFA 重置。
 - 账户列表与经手人候选列表都遵守统一分页参数 `page` / `page_size`。
+- 删除账户时，其财务数据、AI Connections、OAuth 凭证与历史废弃 Token 数据会按外键级联删除。

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import io
+import re
 import uuid
+import zipfile
+from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from openpyxl import Workbook, load_workbook
+from openpyxl import Workbook, load_workbook  # type: ignore[import-untyped]
 from sqlmodel import Session, col, select
 
 from app.core.config import settings
@@ -133,11 +136,83 @@ def save_template_workbook(path: Path) -> None:
     path.write_bytes(create_template_workbook_bytes())
 
 
-def save_uploaded_file(upload_bytes: bytes, suffix: str = ".xlsx") -> Path:
-    storage_dir = ensure_job_storage_dir()
-    file_path = storage_dir / f"{uuid.uuid4()}{suffix}"
-    file_path.write_bytes(upload_bytes)
-    return file_path
+def new_upload_path(suffix: str = ".xlsx") -> Path:
+    return ensure_job_storage_dir() / f"{uuid.uuid4()}{suffix}"
+
+
+def validate_xlsx_archive(path: Path) -> None:
+    try:
+        with zipfile.ZipFile(path) as archive:
+            members = archive.infolist()
+            if len(members) > settings.DATA_JOB_MAX_ARCHIVE_FILES:
+                raise ValueError("Excel archive contains too many files")
+            total_uncompressed = sum(member.file_size for member in members)
+            if total_uncompressed > settings.DATA_JOB_MAX_UNCOMPRESSED_BYTES:
+                raise ValueError("Excel archive expands beyond the allowed size")
+            if any(member.flag_bits & 0x1 for member in members):
+                raise ValueError("Encrypted Excel files are not supported")
+            for member in members:
+                if member.file_size > 10 * 1024 * 1024 and member.compress_size == 0:
+                    raise ValueError(
+                        "Excel archive contains an invalid compressed member"
+                    )
+                if (
+                    member.compress_size > 0
+                    and member.file_size / member.compress_size > 100
+                ):
+                    raise ValueError("Excel archive compression ratio is too high")
+    except zipfile.BadZipFile as exc:
+        raise ValueError("Uploaded file is not a valid .xlsx archive") from exc
+
+
+def _delete_job_file(path_value: str | None) -> None:
+    if not path_value:
+        return
+    storage_dir = ensure_job_storage_dir().resolve()
+    path = Path(path_value).resolve()
+    if not path.is_relative_to(storage_dir):
+        logger.warning("Refusing to delete data-job file outside storage: %s", path)
+        return
+    path.unlink(missing_ok=True)
+
+
+def recover_interrupted_data_jobs() -> int:
+    cutoff = _utcnow() - timedelta(minutes=settings.DATA_JOB_STALE_MINUTES)
+    with Session(engine) as session:
+        jobs = session.exec(
+            select(DataJob).where(
+                col(DataJob.status).in_(
+                    [DataJobStatus.PENDING, DataJobStatus.PROCESSING]
+                )
+            )
+        ).all()
+        interrupted_jobs: list[DataJob] = []
+        for job in jobs:
+            reference_time = job.started_at or job.created_at
+            if reference_time is not None and reference_time < cutoff:
+                interrupted_jobs.append(job)
+        for job in interrupted_jobs:
+            job.status = DataJobStatus.FAILED
+            job.failure_reason = "Job interrupted by application restart"
+            job.finished_at = _utcnow()
+            session.add(job)
+        session.commit()
+        return len(interrupted_jobs)
+
+
+def cleanup_expired_data_jobs() -> int:
+    cutoff = _utcnow() - timedelta(days=settings.DATA_JOB_RETENTION_DAYS)
+    with Session(engine) as session:
+        jobs = session.exec(
+            select(DataJob).where(col(DataJob.created_at) < cutoff)
+        ).all()
+        for job in jobs:
+            _delete_job_file(job.source_file_path)
+            _delete_job_file(job.result_file_path)
+            _delete_job_file(job.error_file_path)
+            session.delete(job)
+        session.commit()
+        return len(jobs)
 
 
 def process_job(job_id: uuid.UUID) -> None:
@@ -179,7 +254,9 @@ def _process_export_job(job_id: uuid.UUID) -> None:
         users = session.exec(select(User)).all()
         users_by_id = {user.id: user for user in users}
 
-        categories = session.exec(select(Category).order_by(Category.owner_id, Category.name)).all()
+        categories = session.exec(
+            select(Category).order_by(col(Category.owner_id), col(Category.name))
+        ).all()
         category_by_id = {category.id: category for category in categories}
         categories_sheet = workbook.create_sheet(CATEGORIES_SHEET)
         categories_sheet.append(["owner_login_name", "name", "parent_name", "color"])
@@ -201,7 +278,9 @@ def _process_export_job(job_id: uuid.UUID) -> None:
 
         budgets = session.exec(
             select(Budget).order_by(
-                col(Budget.owner_id), col(Budget.year).desc(), col(Budget.created_at).desc()
+                col(Budget.owner_id),
+                col(Budget.year).desc(),
+                col(Budget.created_at).desc(),
             )
         ).all()
         budgets_by_id = {budget.id: budget for budget in budgets}
@@ -240,8 +319,8 @@ def _process_export_job(job_id: uuid.UUID) -> None:
             total_rows += len(transactions)
             for transaction in transactions:
                 owner = users_by_id.get(transaction.owner_id)
-                category = category_by_id.get(transaction.category_id)
-                budget = (
+                transaction_category = category_by_id.get(transaction.category_id)
+                transaction_budget = (
                     budgets_by_id.get(transaction.budget_id)
                     if transaction.budget_id is not None
                     else None
@@ -256,8 +335,8 @@ def _process_export_job(job_id: uuid.UUID) -> None:
                         owner.login_name if owner else "",
                         transaction.transaction_date.isoformat(),
                         TransactionType(transaction.transaction_type).name,
-                        category.name if category else "",
-                        budget.name if budget else "",
+                        transaction_category.name if transaction_category else "",
+                        transaction_budget.name if transaction_budget else "",
                         cents_to_amount(transaction.amount_cents),
                         EntryStatus(transaction.entry_status).name,
                         handler_user.login_name if handler_user else "",
@@ -284,6 +363,291 @@ def _process_export_job(job_id: uuid.UUID) -> None:
         job.finished_at = _utcnow()
         session.add(job)
         session.commit()
+
+
+def _import_category_row(
+    session: Session,
+    *,
+    row_number: int,
+    row: dict[str, Any],
+    users_by_login: dict[str, User],
+    categories_by_key: dict[tuple[uuid.UUID, str], Category],
+) -> None:
+    owner = _require_user(
+        users_by_login, row["owner_login_name"], CATEGORIES_SHEET, row_number
+    )
+    name = _require_text(row, "name", CATEGORIES_SHEET, row_number)
+    color = _require_text(row, "color", CATEGORIES_SHEET, row_number)
+    parent_name = _optional_text(row.get("parent_name"))
+    if re.fullmatch(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?", color) is None:
+        raise ImportValidationError(
+            sheet_name=CATEGORIES_SHEET,
+            row_number=row_number,
+            field_name="color",
+            message="Invalid color",
+            raw_key=name,
+        )
+    category_key = (owner.id, name)
+    if category_key in categories_by_key:
+        raise ImportValidationError(
+            sheet_name=CATEGORIES_SHEET,
+            row_number=row_number,
+            field_name="name",
+            message="Category already exists",
+            raw_key=name,
+        )
+    parent = categories_by_key.get((owner.id, parent_name)) if parent_name else None
+    if parent_name and parent is None:
+        raise ImportValidationError(
+            sheet_name=CATEGORIES_SHEET,
+            row_number=row_number,
+            field_name="parent_name",
+            message="Parent category not found",
+            raw_key=name,
+        )
+    category = Category(
+        owner_id=owner.id,
+        name=name,
+        parent_id=parent.id if parent else None,
+        color=color,
+    )
+    session.add(category)
+    session.commit()
+    session.refresh(category)
+    categories_by_key[category_key] = category
+
+
+def _import_budget_row(
+    session: Session,
+    *,
+    row_number: int,
+    row: dict[str, Any],
+    users_by_login: dict[str, User],
+    budgets_by_key: dict[tuple[uuid.UUID, str, int, int], Budget],
+) -> None:
+    owner = _require_user(
+        users_by_login, row["owner_login_name"], BUDGETS_SHEET, row_number
+    )
+    name = _require_text(row, "name", BUDGETS_SHEET, row_number)
+    year = _require_int(row, "year", BUDGETS_SHEET, row_number)
+    period = _parse_budget_period(row.get("period"), BUDGETS_SHEET, row_number, name)
+    amount = _require_positive_float(row, "amount", BUDGETS_SHEET, row_number, name)
+    budget_key = (owner.id, name, year, int(period))
+    if budget_key in budgets_by_key:
+        raise ImportValidationError(
+            sheet_name=BUDGETS_SHEET,
+            row_number=row_number,
+            field_name="name",
+            message="Budget already exists",
+            raw_key=name,
+        )
+    budget = Budget(
+        owner_id=owner.id,
+        name=name,
+        year=year,
+        period=int(period),
+        amount_cents=amount_to_cents(amount),
+    )
+    session.add(budget)
+    session.commit()
+    session.refresh(budget)
+    budgets_by_key[budget_key] = budget
+
+
+def _build_pending_transaction(
+    *,
+    row_number: int,
+    row: dict[str, Any],
+    users_by_login: dict[str, User],
+    categories_by_key: dict[tuple[uuid.UUID, str], Category],
+    budgets_by_key: dict[tuple[uuid.UUID, str, int, int], Budget],
+) -> PendingTransactionRow:
+    owner = _require_user(
+        users_by_login, row["owner_login_name"], TRANSACTIONS_SHEET, row_number
+    )
+    category_name = _require_text(row, "category_name", TRANSACTIONS_SHEET, row_number)
+    category = categories_by_key.get((owner.id, category_name))
+    if category is None:
+        raise ImportValidationError(
+            sheet_name=TRANSACTIONS_SHEET,
+            row_number=row_number,
+            field_name="category_name",
+            message="Category not found",
+            raw_key=category_name,
+        )
+    budget_name = _optional_text(row.get("budget_name"))
+    budget = (
+        _resolve_budget_by_name(
+            budgets_by_key,
+            owner.id,
+            budget_name,
+            TRANSACTIONS_SHEET,
+            row_number,
+        )
+        if budget_name
+        else None
+    )
+    handler_login_name = _optional_text(row.get("handler_login_name"))
+    handler = (
+        _require_user(
+            users_by_login,
+            handler_login_name,
+            TRANSACTIONS_SHEET,
+            row_number,
+            field_name="handler_login_name",
+        )
+        if handler_login_name
+        else owner
+    )
+    summary = _require_text(row, "summary", TRANSACTIONS_SHEET, row_number)
+    transaction = Transaction(
+        owner_id=owner.id,
+        category_id=category.id,
+        budget_id=budget.id if budget else None,
+        transaction_date=_parse_date(
+            row.get("transaction_date"),
+            TRANSACTIONS_SHEET,
+            row_number,
+            category_name,
+        ),
+        transaction_type=int(
+            _parse_transaction_type(
+                row.get("transaction_type"),
+                TRANSACTIONS_SHEET,
+                row_number,
+                category_name,
+            )
+        ),
+        amount_cents=amount_to_cents(
+            _require_positive_float(
+                row, "amount", TRANSACTIONS_SHEET, row_number, category_name
+            )
+        ),
+        entry_status=int(
+            _parse_entry_status(
+                row.get("entry_status"),
+                TRANSACTIONS_SHEET,
+                row_number,
+                category_name,
+            )
+        ),
+        handler_user_id=handler.id,
+        handler_name=handler.full_name or handler.login_name,
+        summary=summary,
+        description=summary,
+        detail=_build_transaction_detail(
+            row.get("detail_note"), row.get("detail_items")
+        ),
+    )
+    return PendingTransactionRow(
+        transaction=transaction,
+        row_number=row_number,
+        raw_key=summary or category_name,
+    )
+
+
+def _advance_import_progress(
+    session: Session, job: DataJob, processed: int, total_rows: int
+) -> int:
+    processed += 1
+    _update_job_progress(
+        session,
+        job,
+        progress_percent=_progress_percent(processed, total_rows),
+    )
+    return processed
+
+
+def _import_category_rows(
+    session: Session,
+    job: DataJob,
+    sheet: Any,
+    users_by_login: dict[str, User],
+    categories_by_key: dict[tuple[uuid.UUID, str], Category],
+    processed: int,
+    total_rows: int,
+) -> int:
+    for row_number, row in _iter_sheet_rows(
+        sheet,
+        ["owner_login_name", "name", "parent_name", "color"],
+    ):
+        try:
+            _import_category_row(
+                session,
+                row_number=row_number,
+                row=row,
+                users_by_login=users_by_login,
+                categories_by_key=categories_by_key,
+            )
+            job.success_rows += 1
+        except ImportValidationError as exc:
+            _record_job_error(session, job.id, exc)
+            job.failed_rows += 1
+        processed = _advance_import_progress(session, job, processed, total_rows)
+    return processed
+
+
+def _import_budget_rows(
+    session: Session,
+    job: DataJob,
+    sheet: Any,
+    users_by_login: dict[str, User],
+    budgets_by_key: dict[tuple[uuid.UUID, str, int, int], Budget],
+    processed: int,
+    total_rows: int,
+) -> int:
+    for row_number, row in _iter_sheet_rows(
+        sheet,
+        ["owner_login_name", "name", "year", "period", "amount"],
+    ):
+        try:
+            _import_budget_row(
+                session,
+                row_number=row_number,
+                row=row,
+                users_by_login=users_by_login,
+                budgets_by_key=budgets_by_key,
+            )
+            job.success_rows += 1
+        except ImportValidationError as exc:
+            _record_job_error(session, job.id, exc)
+            job.failed_rows += 1
+        processed = _advance_import_progress(session, job, processed, total_rows)
+    return processed
+
+
+def _import_transaction_rows(
+    session: Session,
+    job: DataJob,
+    sheet: Any,
+    users_by_login: dict[str, User],
+    categories_by_key: dict[tuple[uuid.UUID, str], Category],
+    budgets_by_key: dict[tuple[uuid.UUID, str, int, int], Budget],
+    processed: int,
+    total_rows: int,
+) -> int:
+    pending_transactions: list[PendingTransactionRow] = []
+    for row_number, row in _iter_sheet_rows(sheet, TRANSACTION_HEADERS):
+        try:
+            pending_transactions.append(
+                _build_pending_transaction(
+                    row_number=row_number,
+                    row=row,
+                    users_by_login=users_by_login,
+                    categories_by_key=categories_by_key,
+                    budgets_by_key=budgets_by_key,
+                )
+            )
+            if len(pending_transactions) >= JOB_BATCH_SIZE:
+                _flush_transaction_batch(session, job, pending_transactions)
+                pending_transactions = []
+        except ImportValidationError as exc:
+            _record_job_error(session, job.id, exc)
+            job.failed_rows += 1
+        processed = _advance_import_progress(session, job, processed, total_rows)
+    if pending_transactions:
+        _flush_transaction_batch(session, job, pending_transactions)
+    return processed
 
 
 def _process_import_job(job_id: uuid.UUID) -> None:
@@ -320,206 +684,42 @@ def _process_import_job(job_id: uuid.UUID) -> None:
         session.add(job)
         session.commit()
 
-        processed = 0
-
-        for row_number, row in _iter_sheet_rows(
+        processed = _import_category_rows(
+            session,
+            job,
             workbook[CATEGORIES_SHEET],
-            ["owner_login_name", "name", "parent_name", "color"],
-        ):
-            try:
-                owner = _require_user(users_by_login, row["owner_login_name"], CATEGORIES_SHEET, row_number)
-                name = _require_text(row, "name", CATEGORIES_SHEET, row_number)
-                color = _require_text(row, "color", CATEGORIES_SHEET, row_number)
-                parent_name = _optional_text(row.get("parent_name"))
-                if not color.startswith("#") or len(color) not in {4, 7}:
-                    raise ImportValidationError(
-                        sheet_name=CATEGORIES_SHEET,
-                        row_number=row_number,
-                        field_name="color",
-                        message="Invalid color",
-                        raw_key=name,
-                    )
-                category_key = (owner.id, name)
-                if category_key in categories_by_key:
-                    raise ImportValidationError(
-                        sheet_name=CATEGORIES_SHEET,
-                        row_number=row_number,
-                        field_name="name",
-                        message="Category already exists",
-                        raw_key=name,
-                    )
-                parent = categories_by_key.get((owner.id, parent_name)) if parent_name else None
-                if parent_name and parent is None:
-                    raise ImportValidationError(
-                        sheet_name=CATEGORIES_SHEET,
-                        row_number=row_number,
-                        field_name="parent_name",
-                        message="Parent category not found",
-                        raw_key=name,
-                    )
-                category = Category(
-                    owner_id=owner.id,
-                    name=name,
-                    parent_id=parent.id if parent else None,
-                    color=color,
-                )
-                session.add(category)
-                session.commit()
-                session.refresh(category)
-                categories_by_key[category_key] = category
-                job.success_rows += 1
-            except ImportValidationError as exc:
-                _record_job_error(session, job.id, exc)
-                job.failed_rows += 1
-            processed += 1
-            _update_job_progress(
-                session,
-                job,
-                progress_percent=_progress_percent(processed, total_rows),
-            )
-
-        for row_number, row in _iter_sheet_rows(
+            users_by_login,
+            categories_by_key,
+            0,
+            total_rows,
+        )
+        processed = _import_budget_rows(
+            session,
+            job,
             workbook[BUDGETS_SHEET],
-            ["owner_login_name", "name", "year", "period", "amount"],
-        ):
-            try:
-                owner = _require_user(users_by_login, row["owner_login_name"], BUDGETS_SHEET, row_number)
-                name = _require_text(row, "name", BUDGETS_SHEET, row_number)
-                year = _require_int(row, "year", BUDGETS_SHEET, row_number)
-                period = _parse_budget_period(row.get("period"), BUDGETS_SHEET, row_number, name)
-                amount = _require_positive_float(row, "amount", BUDGETS_SHEET, row_number, name)
-                budget_key = (owner.id, name, year, int(period))
-                if budget_key in budgets_by_key:
-                    raise ImportValidationError(
-                        sheet_name=BUDGETS_SHEET,
-                        row_number=row_number,
-                        field_name="name",
-                        message="Budget already exists",
-                        raw_key=name,
-                    )
-                budget = Budget(
-                    owner_id=owner.id,
-                    name=name,
-                    year=year,
-                    period=int(period),
-                    amount_cents=amount_to_cents(amount),
-                )
-                session.add(budget)
-                session.commit()
-                session.refresh(budget)
-                budgets_by_key[budget_key] = budget
-                job.success_rows += 1
-            except ImportValidationError as exc:
-                _record_job_error(session, job.id, exc)
-                job.failed_rows += 1
-            processed += 1
-            _update_job_progress(
-                session,
-                job,
-                progress_percent=_progress_percent(processed, total_rows),
-            )
-
-        pending_transactions: list[PendingTransactionRow] = []
-        for row_number, row in _iter_sheet_rows(
+            users_by_login,
+            budgets_by_key,
+            processed,
+            total_rows,
+        )
+        _import_transaction_rows(
+            session,
+            job,
             workbook[TRANSACTIONS_SHEET],
-            TRANSACTION_HEADERS,
-        ):
-            try:
-                owner = _require_user(
-                    users_by_login, row["owner_login_name"], TRANSACTIONS_SHEET, row_number
-                )
-                category_name = _require_text(
-                    row, "category_name", TRANSACTIONS_SHEET, row_number
-                )
-                category = categories_by_key.get((owner.id, category_name))
-                if category is None:
-                    raise ImportValidationError(
-                        sheet_name=TRANSACTIONS_SHEET,
-                        row_number=row_number,
-                        field_name="category_name",
-                        message="Category not found",
-                        raw_key=category_name,
-                    )
-                budget_name = _optional_text(row.get("budget_name"))
-                budget = None
-                if budget_name:
-                    budget = _resolve_budget_by_name(
-                        budgets_by_key, owner.id, budget_name, TRANSACTIONS_SHEET, row_number
-                    )
-                handler_login_name = _optional_text(row.get("handler_login_name"))
-                handler_user = (
-                    _require_user(
-                        users_by_login,
-                        handler_login_name,
-                        TRANSACTIONS_SHEET,
-                        row_number,
-                        field_name="handler_login_name",
-                    )
-                    if handler_login_name
-                    else owner
-                )
-                summary = _require_text(row, "summary", TRANSACTIONS_SHEET, row_number)
-                detail = _build_transaction_detail(
-                    row.get("detail_note"), row.get("detail_items")
-                )
-                transaction = Transaction(
-                    owner_id=owner.id,
-                    category_id=category.id,
-                    budget_id=budget.id if budget else None,
-                    transaction_date=_parse_date(
-                        row.get("transaction_date"),
-                        TRANSACTIONS_SHEET,
-                        row_number,
-                        category_name,
-                    ),
-                    transaction_type=int(
-                        _parse_transaction_type(
-                            row.get("transaction_type"), TRANSACTIONS_SHEET, row_number, category_name
-                        )
-                    ),
-                    amount_cents=amount_to_cents(
-                        _require_positive_float(
-                            row, "amount", TRANSACTIONS_SHEET, row_number, category_name
-                        )
-                    ),
-                    entry_status=int(
-                        _parse_entry_status(
-                            row.get("entry_status"), TRANSACTIONS_SHEET, row_number, category_name
-                        )
-                    ),
-                    handler_user_id=handler_user.id,
-                    handler_name=handler_user.full_name or handler_user.login_name,
-                    summary=summary,
-                    description=summary,
-                    detail=detail,
-                )
-                pending_transactions.append(
-                    PendingTransactionRow(
-                        transaction=transaction,
-                        row_number=row_number,
-                        raw_key=summary or category_name,
-                    )
-                )
-                if len(pending_transactions) >= JOB_BATCH_SIZE:
-                    _flush_transaction_batch(session, job, pending_transactions)
-                    pending_transactions = []
-            except ImportValidationError as exc:
-                _record_job_error(session, job.id, exc)
-                job.failed_rows += 1
-            processed += 1
-            _update_job_progress(
-                session,
-                job,
-                progress_percent=_progress_percent(processed, total_rows),
-            )
-        if pending_transactions:
-            _flush_transaction_batch(session, job, pending_transactions)
+            users_by_login,
+            categories_by_key,
+            budgets_by_key,
+            processed,
+            total_rows,
+        )
 
         if job.failed_rows > 0:
             _write_error_workbook(session, job)
         job.progress_percent = 100
         job.status = (
-            DataJobStatus.PARTIAL_SUCCESS if job.failed_rows > 0 else DataJobStatus.SUCCEEDED
+            DataJobStatus.PARTIAL_SUCCESS
+            if job.failed_rows > 0
+            else DataJobStatus.SUCCEEDED
         )
         job.finished_at = _utcnow()
         session.add(job)
@@ -560,7 +760,9 @@ def _flush_transaction_batch(
         session.commit()
 
 
-def _record_job_error(session: Session, job_id: uuid.UUID, exc: ImportValidationError) -> None:
+def _record_job_error(
+    session: Session, job_id: uuid.UUID, exc: ImportValidationError
+) -> None:
     job_error = DataJobError(
         job_id=job_id,
         sheet_name=exc.sheet_name,
@@ -577,7 +779,7 @@ def _write_error_workbook(session: Session, job: DataJob) -> None:
     errors = session.exec(
         select(DataJobError)
         .where(DataJobError.job_id == job.id)
-        .order_by(DataJobError.sheet_name, DataJobError.row_number)
+        .order_by(col(DataJobError.sheet_name), col(DataJobError.row_number))
     ).all()
     if not errors:
         return
@@ -635,7 +837,9 @@ def _read_template_version(sheet: Any) -> str | None:
     return str(value).strip() if value is not None else None
 
 
-def _iter_sheet_rows(sheet: Any, expected_headers: list[str]):
+def _iter_sheet_rows(
+    sheet: Any, expected_headers: list[str]
+) -> Iterator[tuple[int, dict[str, Any]]]:
     rows = sheet.iter_rows(values_only=True)
     header_row = next(rows, None)
     if header_row is None:
@@ -647,7 +851,9 @@ def _iter_sheet_rows(sheet: Any, expected_headers: list[str]):
         )
     for index, values in enumerate(rows, start=2):
         record = {
-            expected_headers[position]: values[position] if position < len(values) else None
+            expected_headers[position]: values[position]
+            if position < len(values)
+            else None
             for position in range(len(expected_headers))
         }
         if all(value in (None, "") for value in record.values()):
@@ -675,7 +881,9 @@ def _require_user(
     return users_by_login[login_name]
 
 
-def _require_text(row: dict[str, Any], field_name: str, sheet_name: str, row_number: int) -> str:
+def _require_text(
+    row: dict[str, Any], field_name: str, sheet_name: str, row_number: int
+) -> str:
     value = _optional_text(row.get(field_name))
     if not value:
         raise ImportValidationError(
@@ -719,7 +927,9 @@ def _serialize_detail_items(detail: dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
-def _build_transaction_detail(note_value: Any, items_value: Any) -> dict[str, Any] | None:
+def _build_transaction_detail(
+    note_value: Any, items_value: Any
+) -> dict[str, Any] | None:
     note = _optional_text(note_value)
     items_text = _optional_text(items_value)
     items: list[dict[str, Any]] = []
@@ -747,8 +957,17 @@ def _build_transaction_detail(note_value: Any, items_value: Any) -> dict[str, An
     return detail
 
 
-def _require_int(row: dict[str, Any], field_name: str, sheet_name: str, row_number: int) -> int:
+def _require_int(
+    row: dict[str, Any], field_name: str, sheet_name: str, row_number: int
+) -> int:
     value = row.get(field_name)
+    if value is None:
+        raise ImportValidationError(
+            sheet_name=sheet_name,
+            row_number=row_number,
+            field_name=field_name,
+            message="Invalid integer value",
+        )
     try:
         return int(value)
     except (TypeError, ValueError):
@@ -768,6 +987,14 @@ def _require_positive_float(
     raw_key: str | None,
 ) -> float:
     value = row.get(field_name)
+    if value is None:
+        raise ImportValidationError(
+            sheet_name=sheet_name,
+            row_number=row_number,
+            field_name=field_name,
+            message="Invalid number",
+            raw_key=raw_key,
+        )
     try:
         amount = float(value)
     except (TypeError, ValueError):
@@ -849,7 +1076,9 @@ def _parse_entry_status(
     )
 
 
-def _parse_date(value: Any, sheet_name: str, row_number: int, raw_key: str | None) -> date:
+def _parse_date(
+    value: Any, sheet_name: str, row_number: int, raw_key: str | None
+) -> date:
     if isinstance(value, date):
         return value
     text = _optional_text(value)
@@ -937,7 +1166,7 @@ def _mark_job_failed(job_id: uuid.UUID, reason: str) -> None:
         session.commit()
 
 
-def _utcnow():
+def _utcnow() -> datetime:
     from app.models import get_datetime_utc
 
     return get_datetime_utc()

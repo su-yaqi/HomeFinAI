@@ -1,5 +1,6 @@
-from unittest.mock import patch
 import time
+import uuid
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from pwdlib.hashers.bcrypt import BcryptHasher
@@ -10,7 +11,6 @@ from app.core.security import _hotp, get_password_hash, verify_password
 from app.crud import create_user
 from app.models import User, UserCreate
 from app.utils import generate_password_reset_token
-from tests.utils.user import user_authentication_headers
 from tests.utils.utils import (
     login_name_from_email,
     random_email,
@@ -49,6 +49,19 @@ def test_use_access_token(
     result = r.json()
     assert r.status_code == 200
     assert "email" in result
+
+
+def test_password_reset_token_cannot_be_used_as_access_token(
+    client: TestClient,
+) -> None:
+    reset_token = generate_password_reset_token(email=settings.FIRST_SUPERUSER)
+    response = client.get(
+        f"{settings.API_V1_STR}/users/me",
+        headers={"Authorization": f"Bearer {reset_token}"},
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Could not validate credentials"}
 
 
 def test_recovery_password(
@@ -111,6 +124,13 @@ def test_reset_password(client: TestClient, db: Session) -> None:
     db.refresh(user)
     verified, _ = verify_password(new_password, user.hashed_password)
     assert verified
+
+    reused = client.post(
+        f"{settings.API_V1_STR}/reset-password/",
+        json=data,
+    )
+    assert reused.status_code == 400
+    assert reused.json() == {"detail": "Invalid token"}
 
 
 def test_reset_password_invalid_token(
@@ -206,7 +226,9 @@ def test_login_with_argon2_password_keeps_hash(client: TestClient, db: Session) 
     assert user.hashed_password.startswith("$argon2")
 
 
-def test_login_requires_mfa_for_user_with_secret(client: TestClient, db: Session) -> None:
+def test_login_requires_mfa_for_user_with_secret(
+    client: TestClient, db: Session
+) -> None:
     email = random_email()
     password = random_lower_string()
     secret = "JBSWY3DPEHPK3PXP"
@@ -272,3 +294,114 @@ def test_login_no_longer_requires_mfa_after_admin_reset(
     )
     assert login_response.status_code == 200
     assert login_response.json()["access_token"]
+
+
+def test_cookie_login_and_logout(client: TestClient) -> None:
+    login_response = client.post(
+        f"{settings.API_V1_STR}/login",
+        json={
+            "login_name": login_name_from_email(settings.FIRST_SUPERUSER),
+            "password": settings.FIRST_SUPERUSER_PASSWORD,
+        },
+    )
+    assert login_response.status_code == 200
+    assert settings.SESSION_COOKIE_NAME in login_response.cookies
+    assert settings.CSRF_COOKIE_NAME in login_response.cookies
+
+    csrf_token = login_response.cookies[settings.CSRF_COOKIE_NAME]
+    logout_response = client.post(
+        f"{settings.API_V1_STR}/logout",
+        headers={settings.CSRF_HEADER_NAME: csrf_token},
+    )
+    assert logout_response.status_code == 200
+    assert logout_response.json() == {"message": "Logged out successfully"}
+    set_cookie_headers = logout_response.headers.get_list("set-cookie")
+    assert any(settings.SESSION_COOKIE_NAME in value for value in set_cookie_headers)
+    assert any(settings.CSRF_COOKIE_NAME in value for value in set_cookie_headers)
+    assert settings.SESSION_COOKIE_NAME not in client.cookies
+    assert settings.CSRF_COOKIE_NAME not in client.cookies
+
+
+def test_cookie_login_rejects_invalid_inactive_and_missing_mfa(
+    client: TestClient, db: Session
+) -> None:
+    invalid_response = client.post(
+        f"{settings.API_V1_STR}/login",
+        json={"login_name": "missing-user", "password": "incorrect-password"},
+    )
+    assert invalid_response.status_code == 400
+    assert invalid_response.json() == {"detail": "Incorrect login name or password"}
+
+    password = random_lower_string()
+    inactive = create_user(
+        session=db,
+        user_create=UserCreate(
+            email=random_email(), password=password, is_active=False
+        ),
+    )
+    inactive_response = client.post(
+        f"{settings.API_V1_STR}/login",
+        json={"login_name": inactive.login_name, "password": password},
+    )
+    assert inactive_response.status_code == 400
+    assert inactive_response.json() == {"detail": "Inactive user"}
+
+    mfa_user = create_user(
+        session=db,
+        user_create=UserCreate(email=random_email(), password=password),
+    )
+    mfa_user.mfa_secret = "JBSWY3DPEHPK3PXP"
+    db.add(mfa_user)
+    db.commit()
+    mfa_response = client.post(
+        f"{settings.API_V1_STR}/login",
+        json={"login_name": mfa_user.login_name, "password": password},
+    )
+    assert mfa_response.status_code == 400
+    assert mfa_response.json() == {"detail": "Invalid MFA code"}
+
+
+def test_reset_password_rejects_missing_and_inactive_users(
+    client: TestClient, db: Session
+) -> None:
+    missing_token = generate_password_reset_token(email=f"{uuid.uuid4()}@example.com")
+    missing_response = client.post(
+        f"{settings.API_V1_STR}/reset-password/",
+        json={"new_password": random_lower_string(), "token": missing_token},
+    )
+    assert missing_response.status_code == 400
+    assert missing_response.json() == {"detail": "Invalid token"}
+
+    password = random_lower_string()
+    inactive = create_user(
+        session=db,
+        user_create=UserCreate(
+            email=random_email(), password=password, is_active=False
+        ),
+    )
+    inactive_token = generate_password_reset_token(email=inactive.email)
+    inactive_response = client.post(
+        f"{settings.API_V1_STR}/reset-password/",
+        json={"new_password": random_lower_string(), "token": inactive_token},
+    )
+    assert inactive_response.status_code == 400
+    assert inactive_response.json() == {"detail": "Inactive user"}
+
+
+def test_password_recovery_html_content(
+    client: TestClient, superuser_token_headers: dict[str, str]
+) -> None:
+    response = client.post(
+        f"{settings.API_V1_STR}/password-recovery-html-content/"
+        f"{settings.FIRST_SUPERUSER}",
+        headers=superuser_token_headers,
+    )
+    assert response.status_code == 200
+    assert "html" in response.headers["content-type"]
+
+    missing_response = client.post(
+        f"{settings.API_V1_STR}/password-recovery-html-content/"
+        f"{uuid.uuid4()}@example.com",
+        headers=superuser_token_headers,
+    )
+    assert missing_response.status_code == 404

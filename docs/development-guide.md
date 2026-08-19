@@ -5,7 +5,7 @@ This guide defines how to extend the current project template safely and consist
 
 ## Project Positioning
 - The repository is a full-stack template based on FastAPI + React.
-- It already includes authentication, password recovery, user self-service, admin user management, item management, theme switching, generated API client support, backend tests, and Playwright E2E coverage.
+- It already includes authentication, password recovery, user self-service, admin user management, financial management, theme switching, generated API client support, backend tests, and Playwright E2E coverage.
 - Future work should extend these patterns instead of introducing parallel abstractions.
 
 ## Tech Stack
@@ -32,6 +32,8 @@ This guide defines how to extend the current project template safely and consist
 | Infra/ops | Docker Compose, GitHub Actions, optional Sentry |
 
 ## Source Of Truth
+- Repository safety, risk, and completion rules: `AGENTS.md`
+- Change workflow and evidence contract: `docs/development-workflow.md`
 - Engineering rules and collaboration guidance: `docs/development-guide.md`
 - Current implemented product state: `context/*.md` and `context/modules/*`
 - Backend API contracts: backend code plus generated OpenAPI schema
@@ -71,7 +73,7 @@ This guide defines how to extend the current project template safely and consist
 - Route files should stay thin: page title metadata, route guards, query bootstrapping, and high-level layout only.
 - Move forms, dialogs, tables, and menus into feature components under `frontend/src/components/<Feature>`.
 - Keep app-wide primitives under `frontend/src/components/ui` and shared shells under `frontend/src/components/Common` or `Sidebar`.
-- Query keys should remain stable and human-readable, following the current pattern such as `["users"]`, `["items"]`, `["currentUser"]`.
+- Query keys should remain stable and human-readable, following the current pattern such as `["users"]`, `["transactions"]`, `["currentUser"]`.
 
 ## UI And Component Style
 ### Existing style direction
@@ -82,8 +84,8 @@ This guide defines how to extend the current project template safely and consist
 ### Component rules
 - Reuse existing `ui` primitives before creating new low-level controls.
 - Reuse the existing dialog + form + loading button pattern for CRUD workflows.
-- Prefer composition over one-off page-specific markup when interaction patterns already exist in `Admin`, `Items`, or `UserSettings`.
-- Empty states should be explicit and friendly, following the current `Items` page pattern.
+- Prefer composition over one-off page-specific markup when interaction patterns already exist in `Admin`, `Transactions`, or `UserSettings`.
+- Empty states should be explicit and friendly, following the current financial management pages.
 - New navigation entries should be added through the sidebar item config, not hard-coded in multiple locations.
 
 ### Styling rules
@@ -124,7 +126,7 @@ This guide defines how to extend the current project template safely and consist
 ## Testing Expectations
 ### Frontend
 - For user-facing behavior changes, add or update Playwright coverage in `frontend/tests`.
-- Prefer extending the existing flow-based specs for auth, admin, items, and settings before creating scattered one-off files.
+- Prefer extending the existing flow-based specs for auth, admin, transactions, and settings before creating scattered one-off files.
 
 ### Backend
 - Add or update Pytest coverage for new API behavior, startup logic, or CRUD branches.
@@ -136,6 +138,28 @@ This guide defines how to extend the current project template safely and consist
   - Playwright paths touching the changed behavior
 
 ## Tooling And Commands
+### Docker development instances
+Use the repository `Makefile` for Docker-based local work. It assigns a stable
+Compose project and deterministic ports from `DEV_SLOT`, checks conflicts before
+startup, and never stops another project to free a port.
+
+```bash
+make dev-up
+make dev-up DEV_SLOT=1
+make dev-ps DEV_SLOT=1
+make dev-down DEV_SLOT=1
+```
+
+Adminer, Mailcatcher and Playwright UI are opt-in:
+
+```bash
+make adminer-up
+make mail-up
+make playwright-ui
+```
+
+See `docs/local-development.md` for the complete port contract and safety rules.
+
 ### Common commands
 ```bash
 bun install
@@ -150,6 +174,13 @@ bash scripts/test.sh
 bash scripts/lint.sh
 ```
 
+Docker-based backend and E2E tests use separate, project-scoped test stacks:
+
+```bash
+make test-backend
+make test-e2e
+```
+
 ### Client regeneration
 ```bash
 bash scripts/generate-client.sh
@@ -157,16 +188,21 @@ bash scripts/generate-client.sh
 Run this whenever backend OpenAPI changes. The generated files under `frontend/src/client` should not be manually edited.
 
 ## Documentation Update Rules
-Every meaningful feature change should update two layers:
-1. Code and tests
-2. `context` documentation for the implemented state
+Every change must record its `context impact` as `updated` or `none`.
+Update `context` only when implemented product semantics, interfaces, data,
+architecture, or runtime boundaries changed. For `none`, record the concrete
+reason in the PR or delivery report; do not edit context files mechanically.
 
-Minimum expected documentation updates:
+When the impact is `updated`, use the narrowest accurate files:
 - New module or page: update `context/ui.md` and relevant `context/modules/*/ui.md`
 - New endpoint or response change: update `context/apis.md` and relevant `context/modules/*/api.md`
 - New entity or field: update `context/data-schema.md`
 - New cross-cutting behavior or boundaries: update `context/architecture.md`
 - Shipped version scope: update the latest changelog entry
+
+Use `make change-plan` before implementation and `make change-check` before
+completion. The complete S/M/H contract, evidence variables, branch rules, and
+definition of done are in `docs/development-workflow.md`.
 
 ## Recommended Development Workflow
 1. Check `context/` first to understand the current implemented shape.
@@ -175,7 +211,8 @@ Minimum expected documentation updates:
 4. Regenerate the frontend client if OpenAPI changed.
 5. Implement UI using existing shared primitives and feature patterns.
 6. Add or update automated tests.
-7. Refresh `context` documentation to match the new state.
+7. Record context impact and update only the facts that actually changed.
+8. Validate risk, tests, context handling, and traceability before committing.
 
 ## Anti-Patterns To Avoid
 - Bypassing the generated API client for standard backend calls

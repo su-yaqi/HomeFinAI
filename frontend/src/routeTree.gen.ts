@@ -17,13 +17,12 @@ import { Route as LayoutRouteImport } from './routes/_layout'
 import { Route as LayoutIndexRouteImport } from './routes/_layout/index'
 import { Route as LayoutTransactionsRouteImport } from './routes/_layout/transactions'
 import { Route as LayoutSettingsRouteImport } from './routes/_layout/settings'
-import { Route as LayoutItemsRouteImport } from './routes/_layout/items'
 import { Route as LayoutBudgetsRouteImport } from './routes/_layout/budgets'
 import { Route as LayoutAdminRouteImport } from './routes/_layout/admin'
 import { Route as LayoutSystemDataManagementRouteImport } from './routes/_layout/system.data-management'
 import { Route as LayoutSystemCategoriesRouteImport } from './routes/_layout/system.categories'
-import { Route as LayoutSystemApiTokensRouteImport } from './routes/_layout/system.api-tokens'
 import { Route as LayoutSystemAccountsRouteImport } from './routes/_layout/system.accounts'
+import { Route as LayoutConnectAuthorizeRouteImport } from './routes/_layout/connect.authorize'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -64,11 +63,6 @@ const LayoutSettingsRoute = LayoutSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => LayoutRoute,
 } as any)
-const LayoutItemsRoute = LayoutItemsRouteImport.update({
-  id: '/items',
-  path: '/items',
-  getParentRoute: () => LayoutRoute,
-} as any)
 const LayoutBudgetsRoute = LayoutBudgetsRouteImport.update({
   id: '/budgets',
   path: '/budgets',
@@ -90,14 +84,14 @@ const LayoutSystemCategoriesRoute = LayoutSystemCategoriesRouteImport.update({
   path: '/system/categories',
   getParentRoute: () => LayoutRoute,
 } as any)
-const LayoutSystemApiTokensRoute = LayoutSystemApiTokensRouteImport.update({
-  id: '/system/api-tokens',
-  path: '/system/api-tokens',
-  getParentRoute: () => LayoutRoute,
-} as any)
 const LayoutSystemAccountsRoute = LayoutSystemAccountsRouteImport.update({
   id: '/system/accounts',
   path: '/system/accounts',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutConnectAuthorizeRoute = LayoutConnectAuthorizeRouteImport.update({
+  id: '/connect/authorize',
+  path: '/connect/authorize',
   getParentRoute: () => LayoutRoute,
 } as any)
 
@@ -109,11 +103,10 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/admin': typeof LayoutAdminRoute
   '/budgets': typeof LayoutBudgetsRoute
-  '/items': typeof LayoutItemsRoute
   '/settings': typeof LayoutSettingsRoute
   '/transactions': typeof LayoutTransactionsRoute
+  '/connect/authorize': typeof LayoutConnectAuthorizeRoute
   '/system/accounts': typeof LayoutSystemAccountsRoute
-  '/system/api-tokens': typeof LayoutSystemApiTokensRoute
   '/system/categories': typeof LayoutSystemCategoriesRoute
   '/system/data-management': typeof LayoutSystemDataManagementRoute
 }
@@ -124,12 +117,11 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/admin': typeof LayoutAdminRoute
   '/budgets': typeof LayoutBudgetsRoute
-  '/items': typeof LayoutItemsRoute
   '/settings': typeof LayoutSettingsRoute
   '/transactions': typeof LayoutTransactionsRoute
   '/': typeof LayoutIndexRoute
+  '/connect/authorize': typeof LayoutConnectAuthorizeRoute
   '/system/accounts': typeof LayoutSystemAccountsRoute
-  '/system/api-tokens': typeof LayoutSystemApiTokensRoute
   '/system/categories': typeof LayoutSystemCategoriesRoute
   '/system/data-management': typeof LayoutSystemDataManagementRoute
 }
@@ -142,12 +134,11 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/_layout/admin': typeof LayoutAdminRoute
   '/_layout/budgets': typeof LayoutBudgetsRoute
-  '/_layout/items': typeof LayoutItemsRoute
   '/_layout/settings': typeof LayoutSettingsRoute
   '/_layout/transactions': typeof LayoutTransactionsRoute
   '/_layout/': typeof LayoutIndexRoute
+  '/_layout/connect/authorize': typeof LayoutConnectAuthorizeRoute
   '/_layout/system/accounts': typeof LayoutSystemAccountsRoute
-  '/_layout/system/api-tokens': typeof LayoutSystemApiTokensRoute
   '/_layout/system/categories': typeof LayoutSystemCategoriesRoute
   '/_layout/system/data-management': typeof LayoutSystemDataManagementRoute
 }
@@ -161,11 +152,10 @@ export interface FileRouteTypes {
     | '/signup'
     | '/admin'
     | '/budgets'
-    | '/items'
     | '/settings'
     | '/transactions'
+    | '/connect/authorize'
     | '/system/accounts'
-    | '/system/api-tokens'
     | '/system/categories'
     | '/system/data-management'
   fileRoutesByTo: FileRoutesByTo
@@ -176,12 +166,11 @@ export interface FileRouteTypes {
     | '/signup'
     | '/admin'
     | '/budgets'
-    | '/items'
     | '/settings'
     | '/transactions'
     | '/'
+    | '/connect/authorize'
     | '/system/accounts'
-    | '/system/api-tokens'
     | '/system/categories'
     | '/system/data-management'
   id:
@@ -193,12 +182,11 @@ export interface FileRouteTypes {
     | '/signup'
     | '/_layout/admin'
     | '/_layout/budgets'
-    | '/_layout/items'
     | '/_layout/settings'
     | '/_layout/transactions'
     | '/_layout/'
+    | '/_layout/connect/authorize'
     | '/_layout/system/accounts'
-    | '/_layout/system/api-tokens'
     | '/_layout/system/categories'
     | '/_layout/system/data-management'
   fileRoutesById: FileRoutesById
@@ -269,13 +257,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutSettingsRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/items': {
-      id: '/_layout/items'
-      path: '/items'
-      fullPath: '/items'
-      preLoaderRoute: typeof LayoutItemsRouteImport
-      parentRoute: typeof LayoutRoute
-    }
     '/_layout/budgets': {
       id: '/_layout/budgets'
       path: '/budgets'
@@ -304,18 +285,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutSystemCategoriesRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/system/api-tokens': {
-      id: '/_layout/system/api-tokens'
-      path: '/system/api-tokens'
-      fullPath: '/system/api-tokens'
-      preLoaderRoute: typeof LayoutSystemApiTokensRouteImport
-      parentRoute: typeof LayoutRoute
-    }
     '/_layout/system/accounts': {
       id: '/_layout/system/accounts'
       path: '/system/accounts'
       fullPath: '/system/accounts'
       preLoaderRoute: typeof LayoutSystemAccountsRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/connect/authorize': {
+      id: '/_layout/connect/authorize'
+      path: '/connect/authorize'
+      fullPath: '/connect/authorize'
+      preLoaderRoute: typeof LayoutConnectAuthorizeRouteImport
       parentRoute: typeof LayoutRoute
     }
   }
@@ -324,12 +305,11 @@ declare module '@tanstack/react-router' {
 interface LayoutRouteChildren {
   LayoutAdminRoute: typeof LayoutAdminRoute
   LayoutBudgetsRoute: typeof LayoutBudgetsRoute
-  LayoutItemsRoute: typeof LayoutItemsRoute
   LayoutSettingsRoute: typeof LayoutSettingsRoute
   LayoutTransactionsRoute: typeof LayoutTransactionsRoute
   LayoutIndexRoute: typeof LayoutIndexRoute
+  LayoutConnectAuthorizeRoute: typeof LayoutConnectAuthorizeRoute
   LayoutSystemAccountsRoute: typeof LayoutSystemAccountsRoute
-  LayoutSystemApiTokensRoute: typeof LayoutSystemApiTokensRoute
   LayoutSystemCategoriesRoute: typeof LayoutSystemCategoriesRoute
   LayoutSystemDataManagementRoute: typeof LayoutSystemDataManagementRoute
 }
@@ -337,12 +317,11 @@ interface LayoutRouteChildren {
 const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutAdminRoute: LayoutAdminRoute,
   LayoutBudgetsRoute: LayoutBudgetsRoute,
-  LayoutItemsRoute: LayoutItemsRoute,
   LayoutSettingsRoute: LayoutSettingsRoute,
   LayoutTransactionsRoute: LayoutTransactionsRoute,
   LayoutIndexRoute: LayoutIndexRoute,
+  LayoutConnectAuthorizeRoute: LayoutConnectAuthorizeRoute,
   LayoutSystemAccountsRoute: LayoutSystemAccountsRoute,
-  LayoutSystemApiTokensRoute: LayoutSystemApiTokensRoute,
   LayoutSystemCategoriesRoute: LayoutSystemCategoriesRoute,
   LayoutSystemDataManagementRoute: LayoutSystemDataManagementRoute,
 }

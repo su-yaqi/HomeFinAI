@@ -1,0 +1,24 @@
+services:
+  prestart:
+    image: "${HOMEFIN_BACKEND_IMAGE:?Set HOMEFIN_BACKEND_IMAGE to an immutable digest reference}"
+    build: !reset null
+    pull_policy: always
+    profiles:
+      - migration
+
+  backend:
+    image: "${HOMEFIN_BACKEND_IMAGE:?Set HOMEFIN_BACKEND_IMAGE to an immutable digest reference}"
+    build: !reset null
+    pull_policy: always
+    depends_on: !override
+      db:
+        condition: service_healthy
+        restart: true
+
+  frontend:
+    image: "${HOMEFIN_FRONTEND_IMAGE:?Set HOMEFIN_FRONTEND_IMAGE to an immutable digest reference}"
+    build: !reset null
+    pull_policy: always
+    depends_on:
+      backend:
+        condition: service_healthy

@@ -2,7 +2,6 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from app.core.config import settings
-from app.models import User
 from app.models import EntryStatus, TransactionType
 from tests.utils.user import create_random_user
 
@@ -19,15 +18,15 @@ def test_transaction_filters_and_batch_enter(
     for day in ["2026-05-27", "2026-05-28"]:
         response = client.post(
             f"{settings.API_V1_STR}/transactions/",
-        headers=normal_user_token_headers,
-        json={
-            "category_id": category["id"],
-            "transaction_type": TransactionType.INCOME,
-            "amount": 100,
-            "entry_status": EntryStatus.PENDING,
-            "transaction_date": day,
-        },
-    )
+            headers=normal_user_token_headers,
+            json={
+                "category_id": category["id"],
+                "transaction_type": TransactionType.INCOME,
+                "amount": 100,
+                "entry_status": EntryStatus.PENDING,
+                "transaction_date": day,
+            },
+        )
         assert response.status_code == 200
         created.append(response.json())
 
@@ -38,7 +37,8 @@ def test_transaction_filters_and_batch_enter(
     current_user = me_response.json()
 
     filtered = client.get(
-        f"{settings.API_V1_STR}/transactions/?handler_user_id={current_user['id']}&start_date=2026-05-28",
+        f"{settings.API_V1_STR}/transactions/?handler_user_id={current_user['id']}"
+        f"&category_id={category['id']}&start_date=2026-05-28",
         headers=normal_user_token_headers,
     )
     assert filtered.status_code == 200
@@ -145,6 +145,7 @@ def test_transactions_support_summary_and_structured_detail(
             "entry_status": EntryStatus.ENTERED,
             "transaction_date": "2026-05-29",
             "summary": "麦当劳",
+            "description": "测试记录的独立说明",
             "detail": {
                 "note": "晚饭",
                 "items": [
@@ -159,7 +160,7 @@ def test_transactions_support_summary_and_structured_detail(
     assert created["summary"] == "麦当劳"
     assert created["detail"]["note"] == "晚饭"
     assert created["detail"]["items"][0]["name"] == "双层吉士汉堡套餐"
-    assert created["description"] == "麦当劳"
+    assert created["description"] == "测试记录的独立说明"
 
     update_response = client.put(
         f"{settings.API_V1_STR}/transactions/{created['id']}",
@@ -185,7 +186,7 @@ def test_transactions_reject_invalid_detail_shape(
     category = client.post(
         f"{settings.API_V1_STR}/categories/",
         headers=normal_user_token_headers,
-        json={"name": "Transport", "color": "#0088ff"},
+        json={"name": "Invalid Detail Transport", "color": "#0088ff"},
     ).json()
 
     response = client.post(

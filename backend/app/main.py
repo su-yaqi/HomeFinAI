@@ -1,12 +1,20 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 import sentry_sdk
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.middleware.cors import CORSMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
+from app.ai_connector.http import authorize, oauth_metadata, token
+from app.ai_connector.server import mcp_app
 from app.api.main import api_router
 from app.core.config import settings
+from app.data_jobs import cleanup_expired_data_jobs, recover_interrupted_data_jobs
+from app.utils import logger
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:
@@ -14,11 +22,18 @@ def custom_generate_unique_id(route: APIRoute) -> str:
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
             return await call_next(request)
 
-        if request.url.path == f"{settings.API_V1_STR}/login":
+        if request.url.path in {
+            f"{settings.API_V1_STR}/login",
+            "/authorize",
+            "/token",
+            "/mcp",
+        }:
             return await call_next(request)
 
         session_token = request.cookies.get(settings.SESSION_COOKIE_NAME)
@@ -39,10 +54,24 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 if settings.SENTRY_DSN and settings.ENVIRONMENT != "local":
     sentry_sdk.init(dsn=str(settings.SENTRY_DSN), enable_tracing=True)
 
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    interrupted = recover_interrupted_data_jobs()
+    expired = cleanup_expired_data_jobs()
+    if interrupted:
+        logger.warning("Marked %s interrupted data jobs as failed", interrupted)
+    if expired:
+        logger.info("Removed %s expired data jobs", expired)
+    async with mcp_app.lifespan():
+        yield
+
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     generate_unique_id_function=custom_generate_unique_id,
+    lifespan=lifespan,
 )
 
 # Set all CORS enabled origins
@@ -57,3 +86,11 @@ if settings.all_cors_origins:
 
 app.add_middleware(CSRFMiddleware)
 app.include_router(api_router, prefix=settings.API_V1_STR)
+app.add_route(
+    "/.well-known/oauth-authorization-server",
+    oauth_metadata,
+    methods=["GET"],
+)
+app.add_route("/authorize", authorize, methods=["GET", "POST"])
+app.add_route("/token", token, methods=["POST"])
+app.mount("/", mcp_app)

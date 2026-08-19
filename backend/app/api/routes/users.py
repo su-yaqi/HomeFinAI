@@ -3,7 +3,7 @@ from typing import Any
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import col, delete, func, select
+from sqlmodel import col, func, select
 
 from app import crud
 from app.api.deps import (
@@ -23,10 +23,9 @@ from app.models import (
     AdminResetPassword,
     HandlerUserOption,
     HandlerUsersPublic,
-    Item,
+    Message,
     MFAEnableRequest,
     MFASetupPublic,
-    Message,
     UpdatePassword,
     User,
     UserCreate,
@@ -44,10 +43,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 def _build_mfa_otpauth_uri(user: User, secret: str) -> str:
     issuer = quote(settings.PROJECT_NAME)
     account_name = quote(user.login_name)
-    return (
-        f"otpauth://totp/{issuer}:{account_name}"
-        f"?secret={secret}&issuer={issuer}"
-    )
+    return f"otpauth://totp/{issuer}:{account_name}?secret={secret}&issuer={issuer}"
 
 
 @router.get(
@@ -73,7 +69,10 @@ def read_users(
     count = session.exec(count_statement).one()
 
     statement = (
-        select(User).order_by(col(User.created_at).desc()).offset(offset).limit(max_results)
+        select(User)
+        .order_by(col(User.created_at).desc())
+        .offset(offset)
+        .limit(max_results)
     )
     users = session.exec(statement).all()
 
@@ -205,6 +204,7 @@ def update_password_me(
         )
     hashed_password = get_password_hash(body.new_password)
     current_user.hashed_password = hashed_password
+    current_user.auth_version += 1
     session.add(current_user)
     session.commit()
     return Message(message="Password updated successfully")
@@ -307,14 +307,14 @@ def read_user_by_id(
     """
     Get a specific user by id.
     """
-    user = session.get(User, user_id)
-    if user == current_user:
-        return user
+    if user_id == current_user.id:
+        return to_user_public(current_user)
     if not current_user.is_superuser:
         raise HTTPException(
             status_code=403,
             detail="The user doesn't have enough privileges",
         )
+    user = session.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return to_user_public(user)
@@ -374,8 +374,6 @@ def delete_user(
         raise HTTPException(
             status_code=403, detail="Super users are not allowed to delete themselves"
         )
-    statement = delete(Item).where(col(Item.owner_id) == user_id)
-    session.exec(statement)
     session.delete(user)
     session.commit()
     return Message(message="User deleted successfully")
@@ -396,6 +394,7 @@ def reset_user_password(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     user.hashed_password = get_password_hash(payload.new_password)
+    user.auth_version += 1
     session.add(user)
     session.commit()
     return Message(message="Password updated successfully")

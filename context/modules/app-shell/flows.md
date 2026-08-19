@@ -12,7 +12,7 @@
 ### 导航生成
 1. 当前用户信息加载完成后，侧边栏根据 `is_superuser` 生成导航项。
 2. 普通用户看到 `Dashboard / Transactions / Budgets / Categories`。
-3. 管理员额外看到 `Accounts / API Tokens / Data Management`。
+3. 管理员额外看到 `Accounts / Data Management`；AI Connections 位于所有用户自己的 Settings 中。
 
 ### 主题切换
 1. 用户点击主题切换入口。
@@ -21,7 +21,7 @@
 4. `ThemeProvider` 更新根节点样式状态。
 
 ## 业务规则
-- `items` 和 `admin` 仅为兼容路径，不属于主导航。
+- `admin` 仅为兼容路径，不属于主导航。
 - 路由守卫只基于 Bearer Token 登录态判断，不依赖 Cookie Session。
 - 主题模式刷新后必须保持一致。
 - 所有业务列表页都遵守统一分页规范：默认每页 10 条，可切换 `10 / 20 / 50 / 100 / 200`。

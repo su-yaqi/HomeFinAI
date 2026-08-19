@@ -3,8 +3,14 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Response
 from fastapi.responses import HTMLResponse, JSONResponse
+
 from app import crud
-from app.api.deps import CurrentUser, SessionDep, get_current_active_superuser, to_user_public
+from app.api.deps import (
+    CurrentUser,
+    SessionDep,
+    get_current_active_superuser,
+    to_user_public,
+)
 from app.core import security
 from app.core.config import settings
 from app.models import LoginRequest, Message, NewPassword, Token, UserPublic, UserUpdate
@@ -40,7 +46,9 @@ def login_access_token(
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     return Token(
         access_token=security.create_access_token(
-            user.id, expires_delta=access_token_expires
+            user.id,
+            expires_delta=access_token_expires,
+            auth_version=user.auth_version,
         )
     )
 
@@ -68,7 +76,9 @@ def login(
 
     session_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     session_token = security.create_session_token(
-        user.id, expires_delta=session_expires
+        user.id,
+        expires_delta=session_expires,
+        auth_version=user.auth_version,
     )
     csrf_token = security.generate_csrf_token()
     response.set_cookie(
@@ -113,7 +123,9 @@ def recover_password(email: str, session: SessionDep) -> Message:
     # Always return the same response to prevent email enumeration attacks
     # Only send email if user actually exists
     if user:
-        password_reset_token = generate_password_reset_token(email=email)
+        password_reset_token = generate_password_reset_token(
+            email=email, auth_version=user.auth_version
+        )
         email_data = generate_reset_password_email(
             email_to=user.email, email=email, token=password_reset_token
         )
@@ -132,15 +144,18 @@ def reset_password(session: SessionDep, body: NewPassword) -> Message:
     """
     Reset password
     """
-    email = verify_password_reset_token(token=body.token)
-    if not email:
+    reset_claims = verify_password_reset_token(token=body.token)
+    if not reset_claims:
         raise HTTPException(status_code=400, detail="Invalid token")
+    email, auth_version = reset_claims
     user = crud.get_user_by_email(session=session, email=email)
     if not user:
         # Don't reveal that the user doesn't exist - use same error as invalid token
         raise HTTPException(status_code=400, detail="Invalid token")
     elif not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
+    if user.auth_version != auth_version:
+        raise HTTPException(status_code=400, detail="Invalid token")
     user_in_update = UserUpdate(password=body.new_password)
     crud.update_user(
         session=session,
@@ -150,7 +165,11 @@ def reset_password(session: SessionDep, body: NewPassword) -> Message:
     return Message(message="Password updated successfully")
 
 
-@router.post("/password-recovery-html-content/{email}", dependencies=[Depends(get_current_active_superuser)], response_class=HTMLResponse)
+@router.post(
+    "/password-recovery-html-content/{email}",
+    dependencies=[Depends(get_current_active_superuser)],
+    response_class=HTMLResponse,
+)
 def recover_password_html_content(email: str, session: SessionDep) -> Any:
     """
     HTML Content for Password Recovery
@@ -162,7 +181,9 @@ def recover_password_html_content(email: str, session: SessionDep) -> Any:
             status_code=404,
             detail="The user with this username does not exist in the system.",
         )
-    password_reset_token = generate_password_reset_token(email=email)
+    password_reset_token = generate_password_reset_token(
+        email=email, auth_version=user.auth_version
+    )
     email_data = generate_reset_password_email(
         email_to=user.email, email=email, token=password_reset_token
     )

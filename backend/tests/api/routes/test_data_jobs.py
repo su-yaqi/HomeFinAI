@@ -1,12 +1,25 @@
 import io
-from datetime import date
+import zipfile
+from datetime import date, timedelta
+from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from openpyxl import Workbook, load_workbook
 from sqlmodel import Session, select
 
 from app.core.config import settings
-from app.models import Budget, Category, DataJob, DataJobError, Transaction
+from app.data_jobs import cleanup_expired_data_jobs, recover_interrupted_data_jobs
+from app.models import (
+    Budget,
+    Category,
+    DataJob,
+    DataJobError,
+    DataJobStatus,
+    DataJobType,
+    Transaction,
+    get_datetime_utc,
+)
 from tests.utils.user import create_random_user
 
 
@@ -170,7 +183,9 @@ def test_import_job_creates_records_and_error_file(
     assert job.success_rows == 4
 
     imported_category = db.exec(
-        select(Category).where(Category.owner_id == owner.id, Category.name == "Groceries")
+        select(Category).where(
+            Category.owner_id == owner.id, Category.name == "Groceries"
+        )
     ).first()
     assert imported_category is not None
 
@@ -273,3 +288,133 @@ def test_import_job_generates_error_file_for_invalid_rows(
     workbook = load_workbook(io.BytesIO(download_response.content), read_only=True)
     rows = list(workbook["Errors"].iter_rows(values_only=True))
     assert any(row[3] == "Category not found" for row in rows[1:])
+
+
+def test_import_rejects_oversized_and_invalid_archives(
+    client: TestClient, superuser_token_headers: dict[str, str]
+) -> None:
+    with patch("app.core.config.settings.DATA_JOB_MAX_UPLOAD_BYTES", 4):
+        oversized = client.post(
+            f"{settings.API_V1_STR}/system/data-jobs/import",
+            headers=superuser_token_headers,
+            files={"file": ("large.xlsx", b"12345", "application/octet-stream")},
+        )
+    assert oversized.status_code == 413
+
+    invalid = client.post(
+        f"{settings.API_V1_STR}/system/data-jobs/import",
+        headers=superuser_token_headers,
+        files={"file": ("invalid.xlsx", b"not-a-zip", "application/octet-stream")},
+    )
+    assert invalid.status_code == 400
+    assert invalid.json() == {"detail": "Uploaded file is not a valid .xlsx archive"}
+
+
+def test_import_rejects_archive_safety_limit_and_removes_upload(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    tmp_path: Path,
+) -> None:
+    archive_bytes = io.BytesIO()
+    with zipfile.ZipFile(
+        archive_bytes, mode="w", compression=zipfile.ZIP_DEFLATED
+    ) as archive:
+        archive.writestr("first.xml", "first")
+        archive.writestr("second.xml", "second")
+
+    with (
+        patch("app.data_jobs.JOB_STORAGE_DIR", tmp_path),
+        patch("app.core.config.settings.DATA_JOB_MAX_ARCHIVE_FILES", 1),
+    ):
+        response = client.post(
+            f"{settings.API_V1_STR}/system/data-jobs/import",
+            headers=superuser_token_headers,
+            files={
+                "file": (
+                    "too-many-members.xlsx",
+                    archive_bytes.getvalue(),
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            },
+        )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Excel archive contains too many files"}
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_export_rejects_when_active_job_limit_is_reached(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+    db: Session,
+) -> None:
+    owner = create_random_user(db)
+    active_job = DataJob(
+        job_type=DataJobType.EXPORT,
+        status=DataJobStatus.PROCESSING,
+        created_by=owner.id,
+    )
+    db.add(active_job)
+    db.commit()
+
+    with patch("app.core.config.settings.DATA_JOB_MAX_ACTIVE_JOBS", 1):
+        response = client.post(
+            f"{settings.API_V1_STR}/system/data-jobs/export",
+            headers=superuser_token_headers,
+        )
+
+    assert response.status_code == 429
+    assert response.json() == {"detail": "Too many data jobs are already running"}
+    db.delete(active_job)
+    db.commit()
+
+
+def test_data_job_recovery_and_retention_cleanup(
+    db: Session,
+    tmp_path: Path,
+) -> None:
+    owner = create_random_user(db)
+    now = get_datetime_utc()
+    stale_job = DataJob(
+        job_type=DataJobType.EXPORT,
+        status=DataJobStatus.PROCESSING,
+        created_by=owner.id,
+        created_at=now - timedelta(hours=2),
+        started_at=now - timedelta(hours=2),
+    )
+    expired_file = tmp_path / "expired.xlsx"
+    expired_file.write_bytes(b"expired")
+    outside_file = tmp_path.parent / f"{tmp_path.name}-outside.xlsx"
+    outside_file.write_bytes(b"outside")
+    expired_job = DataJob(
+        job_type=DataJobType.IMPORT,
+        status=DataJobStatus.FAILED,
+        created_by=owner.id,
+        created_at=now - timedelta(days=31),
+        source_file_path=str(expired_file),
+        error_file_path=str(outside_file),
+    )
+    db.add(stale_job)
+    db.add(expired_job)
+    db.commit()
+    stale_job_id = stale_job.id
+    expired_job_id = expired_job.id
+
+    with (
+        patch("app.data_jobs.JOB_STORAGE_DIR", tmp_path),
+        patch("app.core.config.settings.DATA_JOB_STALE_MINUTES", 60),
+        patch("app.core.config.settings.DATA_JOB_RETENTION_DAYS", 30),
+    ):
+        assert recover_interrupted_data_jobs() == 1
+        assert cleanup_expired_data_jobs() == 1
+
+    db.expire_all()
+    recovered = db.get(DataJob, stale_job_id)
+    assert recovered is not None
+    assert recovered.status == DataJobStatus.FAILED
+    assert recovered.failure_reason == "Job interrupted by application restart"
+    assert recovered.finished_at is not None
+    assert db.get(DataJob, expired_job_id) is None
+    assert not expired_file.exists()
+    assert outside_file.read_bytes() == b"outside"
+    outside_file.unlink()

@@ -5,7 +5,7 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
-import { UsersService } from "@/client"
+import { type UserCreate, UsersService } from "@/client"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -74,8 +74,8 @@ const AddUser = () => {
   })
 
   const mutation = useMutation({
-    mutationFn: (data: FormData) =>
-      UsersService.createUser({ requestBody: data as never }),
+    mutationFn: (data: UserCreate) =>
+      UsersService.createUser({ requestBody: data }),
     onSuccess: () => {
       showSuccessToast("User created successfully")
       form.reset()
@@ -88,7 +88,8 @@ const AddUser = () => {
   })
 
   const onSubmit = (data: FormData) => {
-    mutation.mutate(data)
+    const { confirm_password: _, ...submitData } = data
+    mutation.mutate(submitData)
   }
 
   return (

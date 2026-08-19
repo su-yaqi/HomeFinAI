@@ -2,12 +2,12 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { KeyRound, RotateCcw, ShieldAlert } from "lucide-react"
 import { useState } from "react"
 
+import { UsersService } from "@/client"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { LoadingButton } from "@/components/ui/loading-button"
-import { homefinApi } from "@/features/homefin/api"
 import useAuth from "@/hooks/useAuth"
 import useCustomToast from "@/hooks/useCustomToast"
 import { handleError } from "@/utils"
@@ -25,20 +25,22 @@ const MfaSettings = () => {
   }
 
   const setupMutation = useMutation({
-    mutationFn: () => homefinApi.setupMyMfa(),
+    mutationFn: () => UsersService.setupMfa(),
     onSuccess: (payload) => {
       setSetupSecret(payload.secret)
       setSetupUri(payload.otpauth_uri)
       setVerificationCode("")
     },
-    onError: handleError.bind(showErrorToast) as never,
+    onError: handleError.bind(showErrorToast),
   })
 
   const enableMutation = useMutation({
     mutationFn: () =>
-      homefinApi.enableMyMfa({
-        secret: setupSecret ?? "",
-        code: verificationCode,
+      UsersService.enableMfa({
+        requestBody: {
+          secret: setupSecret ?? "",
+          code: verificationCode,
+        },
       }),
     onSuccess: async () => {
       showSuccessToast("MFA enabled successfully")
@@ -47,11 +49,11 @@ const MfaSettings = () => {
       setVerificationCode("")
       await refreshCurrentUser()
     },
-    onError: handleError.bind(showErrorToast) as never,
+    onError: handleError.bind(showErrorToast),
   })
 
   const resetMutation = useMutation({
-    mutationFn: () => homefinApi.resetMyMfa(),
+    mutationFn: () => UsersService.resetMyMfa(),
     onSuccess: async () => {
       showSuccessToast("MFA reset successfully")
       setSetupSecret(null)
@@ -59,11 +61,11 @@ const MfaSettings = () => {
       setVerificationCode("")
       await refreshCurrentUser()
     },
-    onError: handleError.bind(showErrorToast) as never,
+    onError: handleError.bind(showErrorToast),
   })
 
   const disableMutation = useMutation({
-    mutationFn: () => homefinApi.disableMyMfa(),
+    mutationFn: () => UsersService.disableMyMfa(),
     onSuccess: async () => {
       showSuccessToast("MFA disabled successfully")
       setSetupSecret(null)
@@ -71,7 +73,7 @@ const MfaSettings = () => {
       setVerificationCode("")
       await refreshCurrentUser()
     },
-    onError: handleError.bind(showErrorToast) as never,
+    onError: handleError.bind(showErrorToast),
   })
 
   const isLoading =
@@ -89,8 +91,8 @@ const MfaSettings = () => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
-          <div>
+        <div className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <p className="font-medium">
               {currentUser?.has_mfa ? "MFA is enabled" : "MFA is not enabled"}
             </p>
@@ -102,14 +104,16 @@ const MfaSettings = () => {
           </div>
           {!currentUser?.has_mfa ? (
             <LoadingButton
+              className="w-full sm:w-auto"
               onClick={() => setupMutation.mutate()}
               loading={setupMutation.isPending}
             >
               Set up MFA
             </LoadingButton>
           ) : (
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 min-[420px]:flex-row">
               <LoadingButton
+                className="min-h-11 flex-1 sm:min-h-9"
                 variant="outline"
                 onClick={() => resetMutation.mutate()}
                 loading={resetMutation.isPending}
@@ -118,6 +122,7 @@ const MfaSettings = () => {
                 Reset
               </LoadingButton>
               <LoadingButton
+                className="min-h-11 flex-1 sm:min-h-9"
                 variant="destructive"
                 onClick={() => disableMutation.mutate()}
                 loading={disableMutation.isPending}
@@ -170,8 +175,9 @@ const MfaSettings = () => {
                   }
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 min-[420px]:flex-row">
                 <Button
+                  className="min-h-11 flex-1 sm:min-h-9"
                   variant="outline"
                   onClick={() => {
                     setSetupSecret(null)
@@ -183,6 +189,7 @@ const MfaSettings = () => {
                   Cancel
                 </Button>
                 <LoadingButton
+                  className="min-h-11 flex-1 sm:min-h-9"
                   onClick={() => enableMutation.mutate()}
                   loading={enableMutation.isPending}
                   disabled={verificationCode.length !== 6}

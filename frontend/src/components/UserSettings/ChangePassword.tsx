@@ -133,7 +133,7 @@ const ChangePassword = () => {
           <LoadingButton
             type="submit"
             loading={mutation.isPending}
-            className="self-start"
+            className="min-h-11 w-full sm:min-h-9 sm:w-auto sm:self-start"
           >
             Update Password
           </LoadingButton>

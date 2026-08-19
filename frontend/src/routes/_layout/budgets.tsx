@@ -3,6 +3,12 @@ import { createFileRoute } from "@tanstack/react-router"
 import { Pencil, Plus, Trash2 } from "lucide-react"
 import { useState } from "react"
 
+import {
+  type BudgetPublic as Budget,
+  type BudgetPeriod,
+  BudgetsService,
+} from "@/client"
+import { PageHeader } from "@/components/Common/PageHeader"
 import { TablePagination } from "@/components/Common/TablePagination"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -31,11 +37,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  type Budget,
-  type BudgetPeriod,
-  homefinApi,
-} from "@/features/homefin/api"
 import useCustomToast from "@/hooks/useCustomToast"
 import { handleError } from "@/utils"
 
@@ -66,7 +67,7 @@ function BudgetsPage() {
   const [pageSize, setPageSize] = useState(10)
   const { data, isLoading } = useQuery({
     queryKey: ["budgets", page, pageSize],
-    queryFn: () => homefinApi.readBudgets({ page, page_size: pageSize }),
+    queryFn: () => BudgetsService.readBudgets({ page, pageSize }),
   })
 
   const budgets = data?.data ?? []
@@ -84,8 +85,11 @@ function BudgetsPage() {
         amount: Number(form.amount),
       }
       return editing
-        ? homefinApi.updateBudget(editing.id, payload)
-        : homefinApi.createBudget(payload)
+        ? BudgetsService.updateBudget({
+            budgetId: editing.id,
+            requestBody: payload,
+          })
+        : BudgetsService.createBudget({ requestBody: payload })
     },
     onSuccess: () => {
       showSuccessToast(editing ? "Budget updated" : "Budget created")
@@ -95,17 +99,17 @@ function BudgetsPage() {
       queryClient.invalidateQueries({ queryKey: ["budgets"] })
       queryClient.invalidateQueries({ queryKey: ["dashboard"] })
     },
-    onError: handleError.bind(showErrorToast) as never,
+    onError: handleError.bind(showErrorToast),
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => homefinApi.deleteBudget(id),
+    mutationFn: (id: string) => BudgetsService.deleteBudget({ budgetId: id }),
     onSuccess: () => {
       showSuccessToast("Budget deleted")
       queryClient.invalidateQueries({ queryKey: ["budgets"] })
       queryClient.invalidateQueries({ queryKey: ["dashboard"] })
     },
-    onError: handleError.bind(showErrorToast) as never,
+    onError: handleError.bind(showErrorToast),
   })
 
   const openCreate = () => {
@@ -133,32 +137,36 @@ function BudgetsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Budgets</h1>
-          <p className="text-muted-foreground">
-            Set annual, quarterly, or monthly spending targets.
-          </p>
-        </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={openCreate}>
-              <Plus className="mr-2 h-4 w-4" />
-              New Budget
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {editing ? "Edit budget" : "Create budget"}
-              </DialogTitle>
-              <DialogDescription>
-                Budget amounts are entered in yuan and tracked against expense
-                transactions.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-2">
+      <Dialog open={open} onOpenChange={setOpen}>
+        <PageHeader
+          title="Budgets"
+          description="Set annual, quarterly, or monthly spending targets."
+          actions={
+            <DialogTrigger asChild>
+              <Button onClick={openCreate}>
+                <Plus className="mr-2 h-4 w-4" />
+                New Budget
+              </Button>
+            </DialogTrigger>
+          }
+        />
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editing ? "Edit budget" : "Create budget"}
+            </DialogTitle>
+            <DialogDescription>
+              Budget amounts are entered in yuan and tracked against expense
+              transactions.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium" htmlFor="budget-name">
+                Name
+              </label>
               <Input
+                id="budget-name"
                 placeholder="Budget name"
                 value={form.name}
                 onChange={(event) =>
@@ -168,8 +176,14 @@ function BudgetsPage() {
                   }))
                 }
               />
-              <div className="grid gap-4 md:grid-cols-3">
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium" htmlFor="budget-year">
+                  Year
+                </label>
                 <Input
+                  id="budget-year"
                   placeholder="Year"
                   type="number"
                   value={form.year}
@@ -180,13 +194,16 @@ function BudgetsPage() {
                     }))
                   }
                 />
+              </div>
+              <div className="grid gap-2">
+                <span className="text-sm font-medium">Period</span>
                 <Select
                   value={form.period}
                   onValueChange={(value) =>
                     setForm((current) => ({ ...current, period: value }))
                   }
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="w-full" aria-label="Period">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -195,9 +212,16 @@ function BudgetsPage() {
                     <SelectItem value="3">Yearly</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium" htmlFor="budget-amount">
+                  Amount
+                </label>
                 <Input
+                  id="budget-amount"
                   placeholder="Amount"
                   type="number"
+                  inputMode="decimal"
                   min="0"
                   step="0.01"
                   value={form.amount}
@@ -210,82 +234,139 @@ function BudgetsPage() {
                 />
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={() => saveMutation.mutate()}
-                disabled={
-                  saveMutation.isPending ||
-                  !form.name.trim() ||
-                  !form.year ||
-                  !form.amount
-                }
-              >
-                Save
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => saveMutation.mutate()}
+              disabled={
+                saveMutation.isPending ||
+                !form.name.trim() ||
+                !form.year ||
+                !form.amount
+              }
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader>
           <CardTitle>Budget List</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-4 sm:px-6">
           <div className="space-y-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Year</TableHead>
-                  <TableHead>Period</TableHead>
-                  <TableHead>Budget</TableHead>
-                  <TableHead>Used</TableHead>
-                  <TableHead className="w-[140px] text-right">
-                    Actions
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {budgets.map((budget) => (
-                  <TableRow key={budget.id}>
-                    <TableCell className="font-medium">{budget.name}</TableCell>
-                    <TableCell>{budget.year}</TableCell>
-                    <TableCell>{periodLabel[budget.period]}</TableCell>
-                    <TableCell>{formatCurrency(budget.amount)}</TableCell>
-                    <TableCell>{formatCurrency(budget.used_amount)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openEdit(budget)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => deleteMutation.mutate(budget.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+            <div className="mobile-record-list">
+              {budgets.map((budget) => (
+                <Card key={budget.id} className="gap-4 py-4 shadow-none">
+                  <CardContent className="space-y-4 px-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="break-words font-semibold">
+                          {budget.name}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {budget.year} · {periodLabel[budget.period]}
+                        </p>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {!isLoading && budgets.length === 0 && (
+                      <div className="shrink-0 text-right">
+                        <p className="font-semibold">
+                          {formatCurrency(budget.amount)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Used {formatCurrency(budget.used_amount ?? 0)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        variant="outline"
+                        className="min-h-11"
+                        onClick={() => openEdit(budget)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="min-h-11"
+                        onClick={() => deleteMutation.mutate(budget.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {!isLoading && budgets.length === 0 && (
+                <div className="rounded-lg border px-4 py-10 text-center text-sm text-muted-foreground">
+                  No budgets yet.
+                </div>
+              )}
+            </div>
+            <div className="desktop-table-only">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
-                      No budgets yet.
-                    </TableCell>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Year</TableHead>
+                    <TableHead>Period</TableHead>
+                    <TableHead>Budget</TableHead>
+                    <TableHead>Used</TableHead>
+                    <TableHead className="w-[140px] text-right">
+                      Actions
+                    </TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {budgets.map((budget) => (
+                    <TableRow key={budget.id}>
+                      <TableCell className="font-medium">
+                        {budget.name}
+                      </TableCell>
+                      <TableCell>{budget.year}</TableCell>
+                      <TableCell>{periodLabel[budget.period]}</TableCell>
+                      <TableCell>{formatCurrency(budget.amount)}</TableCell>
+                      <TableCell>
+                        {formatCurrency(budget.used_amount ?? 0)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label={`Edit ${budget.name}`}
+                            onClick={() => openEdit(budget)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label={`Delete ${budget.name}`}
+                            onClick={() => deleteMutation.mutate(budget.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {!isLoading && budgets.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-24 text-center">
+                        No budgets yet.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
             <TablePagination
               page={page}
               pageSize={pageSize}

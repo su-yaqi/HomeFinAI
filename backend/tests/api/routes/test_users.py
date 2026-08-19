@@ -1,6 +1,6 @@
+import time
 import uuid
 from unittest.mock import patch
-import time
 
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
@@ -8,8 +8,8 @@ from sqlmodel import Session, select
 from app import crud
 from app.core.config import settings
 from app.core.security import _hotp, verify_password
-from app.models import User, UserCreate
-from tests.utils.user import create_random_user
+from app.models import ApiToken, User, UserCreate
+from tests.utils.user import create_random_user, user_authentication_headers
 from tests.utils.utils import random_email, random_lower_string
 
 
@@ -219,7 +219,9 @@ def test_read_handler_users_as_normal_user(
     assert response.status_code == 200
     payload = response.json()
     assert any(option["id"] == str(user.id) for option in payload["data"])
-    matching = next(option for option in payload["data"] if option["id"] == str(user.id))
+    matching = next(
+        option for option in payload["data"] if option["id"] == str(user.id)
+    )
     assert matching["display_name"] == "Handler Candidate"
 
 
@@ -270,14 +272,26 @@ def test_update_password_me(
     verified, _ = verify_password(new_password, user_db.hashed_password)
     assert verified
 
+    revoked_response = client.get(
+        f"{settings.API_V1_STR}/users/me",
+        headers=superuser_token_headers,
+    )
+    assert revoked_response.status_code == 401
+    assert revoked_response.json() == {"detail": "Session has been revoked"}
+
     # Revert to the old password to keep consistency in test
     old_data = {
         "current_password": new_password,
         "new_password": settings.FIRST_SUPERUSER_PASSWORD,
     }
+    refreshed_headers = user_authentication_headers(
+        client=client,
+        email=settings.FIRST_SUPERUSER,
+        password=new_password,
+    )
     r = client.patch(
         f"{settings.API_V1_STR}/users/me/password",
-        headers=superuser_token_headers,
+        headers=refreshed_headers,
         json=old_data,
     )
     db.refresh(user_db)
@@ -504,6 +518,30 @@ def test_delete_user_super_user(
     assert result is None
 
 
+def test_delete_user_cascades_owned_api_tokens(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    user = create_random_user(db)
+    token = ApiToken(
+        name="Owned token",
+        token_prefix="owned-token",
+        token_hash="a" * 64,
+        created_by=user.id,
+    )
+    db.add(token)
+    db.commit()
+    db.refresh(token)
+    token_id = token.id
+
+    response = client.delete(
+        f"{settings.API_V1_STR}/users/{user.id}",
+        headers=superuser_token_headers,
+    )
+    assert response.status_code == 200
+    db.expire_all()
+    assert db.get(ApiToken, token_id) is None
+
+
 def test_delete_user_not_found(
     client: TestClient, superuser_token_headers: dict[str, str]
 ) -> None:
@@ -556,6 +594,11 @@ def test_admin_can_reset_user_password(
         session=db,
         user_create=UserCreate(email=username, password=password),
     )
+    user_headers = user_authentication_headers(
+        client=client,
+        email=username,
+        password=password,
+    )
 
     r = client.post(
         f"{settings.API_V1_STR}/users/{user.id}/reset-password",
@@ -567,6 +610,13 @@ def test_admin_can_reset_user_password(
     db.refresh(user)
     verified, _ = verify_password(new_password, user.hashed_password)
     assert verified
+
+    revoked_response = client.get(
+        f"{settings.API_V1_STR}/users/me",
+        headers=user_headers,
+    )
+    assert revoked_response.status_code == 401
+    assert revoked_response.json() == {"detail": "Session has been revoked"}
 
 
 def test_admin_can_reset_user_mfa_secret(

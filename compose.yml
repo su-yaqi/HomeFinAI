@@ -1,25 +1,53 @@
+x-homefin-backend-environment: &homefin-backend-environment
+  ENVIRONMENT: "${ENVIRONMENT:-local}"
+  PROJECT_NAME: "${PROJECT_NAME:-HomeFin}"
+  FRONTEND_HOST: "${FRONTEND_HOST:-http://localhost:5173}"
+  BACKEND_CORS_ORIGINS: "${BACKEND_CORS_ORIGINS:-http://localhost:5173}"
+  SECRET_KEY: "${SECRET_KEY:-changethis-local-development-secret-key}"
+  FIRST_SUPERUSER: "${FIRST_SUPERUSER:-admin@example.com}"
+  FIRST_SUPERUSER_PASSWORD: "${FIRST_SUPERUSER_PASSWORD:-changethis-local-admin-password}"
+  POSTGRES_SERVER: "${POSTGRES_SERVER:-db}"
+  POSTGRES_PORT: "${POSTGRES_PORT:-5432}"
+  POSTGRES_DB: "${POSTGRES_DB:-app}"
+  POSTGRES_USER: "${POSTGRES_USER:-postgres}"
+  POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-changethis-local-db-password}"
+  SMTP_HOST: "${SMTP_HOST:-}"
+  SMTP_USER: "${SMTP_USER:-}"
+  SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+  EMAILS_FROM_EMAIL: "${EMAILS_FROM_EMAIL:-}"
+  SENTRY_DSN: "${SENTRY_DSN:-}"
+  BUSINESS_TIMEZONE: "${BUSINESS_TIMEZONE:-Asia/Shanghai}"
+  DATA_JOB_MAX_UPLOAD_BYTES: "${DATA_JOB_MAX_UPLOAD_BYTES:-26214400}"
+  DATA_JOB_MAX_UNCOMPRESSED_BYTES: "${DATA_JOB_MAX_UNCOMPRESSED_BYTES:-104857600}"
+  DATA_JOB_MAX_ARCHIVE_FILES: "${DATA_JOB_MAX_ARCHIVE_FILES:-100}"
+  DATA_JOB_MAX_ACTIVE_JOBS: "${DATA_JOB_MAX_ACTIVE_JOBS:-2}"
+  DATA_JOB_RETENTION_DAYS: "${DATA_JOB_RETENTION_DAYS:-30}"
+  DATA_JOB_STALE_MINUTES: "${DATA_JOB_STALE_MINUTES:-60}"
+
 services:
   db:
     image: postgres:18
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-app}",
+        ]
       interval: 10s
       retries: 5
       start_period: 30s
       timeout: 10s
     volumes:
       - app-db-data:/var/lib/postgresql/data/pgdata
-    env_file:
-      - .env
     environment:
-      - PGDATA=/var/lib/postgresql/data/pgdata
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable not set}
-      - POSTGRES_USER=${POSTGRES_USER?Variable not set}
-      - POSTGRES_DB=${POSTGRES_DB?Variable not set}
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-changethis-local-db-password}"
+      POSTGRES_USER: "${POSTGRES_USER:-postgres}"
+      POSTGRES_DB: "${POSTGRES_DB:-app}"
 
   prestart:
-    image: ${DOCKER_IMAGE_BACKEND?Variable not set}:${TAG-latest}
+    image: ${DOCKER_IMAGE_BACKEND:-backend}:${TAG-latest}
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -28,13 +56,12 @@ services:
         condition: service_healthy
         restart: true
     command: bash scripts/prestart.sh
-    env_file:
-      - .env
     environment:
-      - POSTGRES_SERVER=db
+      <<: *homefin-backend-environment
+      POSTGRES_SERVER: db
 
   backend:
-    image: ${DOCKER_IMAGE_BACKEND?Variable not set}:${TAG-latest}
+    image: ${DOCKER_IMAGE_BACKEND:-backend}:${TAG-latest}
     restart: always
     depends_on:
       db:
@@ -42,11 +69,10 @@ services:
         restart: true
       prestart:
         condition: service_completed_successfully
-    env_file:
-      - .env
     environment:
-      - POSTGRES_SERVER=db
-      - DATA_JOBS_STORAGE_DIR=/data/homefin-data-jobs
+      <<: *homefin-backend-environment
+      POSTGRES_SERVER: db
+      DATA_JOBS_STORAGE_DIR: /data/homefin-data-jobs
     volumes:
       - app-data-jobs-data:/data
     healthcheck:
@@ -59,13 +85,13 @@ services:
       dockerfile: backend/Dockerfile
 
   frontend:
-    image: ${DOCKER_IMAGE_FRONTEND?Variable not set}:${TAG-latest}
+    image: ${DOCKER_IMAGE_FRONTEND:-frontend}:${TAG-latest}
     restart: always
     build:
       context: .
       dockerfile: frontend/Dockerfile
       args:
-        - VITE_API_URL=${INTRANET_API_URL?Variable not set}
+        - VITE_API_URL=${INTRANET_API_URL:-http://localhost:8000}
         - NODE_ENV=production
 
 volumes:
