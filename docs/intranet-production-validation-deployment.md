@@ -134,6 +134,12 @@ Environment、production required reviewer、Environment Secrets/Variables、Run
 - 发布 GitHub Release 后，Production 工作流验证相同 SHA 并等待 Environment 批准
 - 已通过完整运行的 SHA 如需重部署 staging，手动运行 `Redeploy Verified Staging Image`
 
+只有仓库变量 `STAGING_ENABLED` 明确设置为 `true` 时，统一 CI 才会构建发布镜像并自动
+部署 staging，手动重部署任务也才会进入 `staging` Environment 并选择
+`self-hosted + staging` Runner。未配置测试服务器时应保持该变量未设置或非 `true`，
+此时相关任务会明确显示为 skipped；这只允许代码合并，不构成 staging 验证证据，
+也不能满足 Production Release 的晋级条件。
+
 不应在部署机直接执行 `docker compose build`。`scripts/deploy-release.sh` 是工作流的
 受控执行单元，需要完整 SHA、两个 digest 镜像、运行 Secrets 和绝对备份/状态目录。
 

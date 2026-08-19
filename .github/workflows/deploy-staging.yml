@@ -101,7 +101,9 @@ jobs:
     needs:
       - verify
     environment: staging
-    if: github.repository_owner != 'fastapi'
+    if: >-
+      github.repository_owner != 'fastapi' &&
+      vars.STAGING_ENABLED == 'true'
     runs-on:
       - self-hosted
       - staging

@@ -74,7 +74,9 @@
   `sha256` digest 固定的 GHCR 镜像。前端镜像使用同源 `/api`，由容器内 Nginx
   转发到 Backend，因此 staging 与 production 晋级同一镜像，不写入环境专属 API
   地址。
-- `main` 的单一 CI 门禁通过后才构建镜像；staging 消费该次构建输出的 digest。
+- `main` 的单一 CI 门禁通过后，只有仓库变量 `STAGING_ENABLED=true` 时才构建本次
+  不可变镜像并由 staging 消费对应 digest。变量未启用时镜像构建和 staging 部署明确
+  跳过，不产生 staging 证据，也不允许后续 Production Release 晋级。
   Production Release 必须指向 `main` 提交，并找到同一 SHA 的完整成功 CI/staging
   运行、下载该运行保存的 digest 清单后才能进入 GitHub `production` Environment
   批准，不能在发布时重新解析可移动 tag。
