@@ -38,7 +38,7 @@ jobs:
       artifacts: ${{ steps.plan.outputs.artifacts }}
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -62,7 +62,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Validate policy scripts
@@ -91,16 +91,16 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
       - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
       - name: Set up uv
-        uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1 # v8.3.1
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: "0.11.4"
       - name: Set up Bun
@@ -131,7 +131,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Run migrations and tests
@@ -154,7 +154,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Set up Bun
@@ -179,15 +179,15 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.10"
       - name: Set up uv
-        uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1 # v8.3.1
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: "0.11.4"
       - name: Set up Bun
@@ -218,7 +218,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Build and smoke-test isolated stack
@@ -244,7 +244,7 @@ jobs:
       CI: "1"
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Run isolated browser suite
@@ -277,7 +277,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Require every selected check
-        uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # v1.2.2
+        uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
           jobs: ${{ toJSON(needs) }}
           allowed-skips: backend,frontend,artifacts,compose,e2e
@@ -301,7 +301,7 @@ jobs:
       frontend-image: ${{ steps.images.outputs.frontend-name }}@${{ steps.frontend.outputs.digest }}
     steps:
       - name: Checkout the verified commit
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Select registry image names
@@ -317,14 +317,14 @@ jobs:
             printf 'frontend-tag=%s:%s\n' "${frontend_name}" "${GITHUB_SHA}"
           } >>"${GITHUB_OUTPUT}"
       - name: Log in to the GitHub Container Registry
-        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1 # v3.6.0
+        uses: docker/login-action@0a596b2e7a325f0cedf8e9bd21ab002cbd3c9241 # v3.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push backend once
         id: backend
-        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4 # v6.19.2
+        uses: docker/build-push-action@2ca78c6bec76527009825f31aae0532b4d40d820 # v6.19.2
         with:
           context: .
           file: backend/Dockerfile
@@ -332,7 +332,7 @@ jobs:
           tags: ${{ steps.images.outputs.backend-tag }}
       - name: Build and push environment-neutral frontend once
         id: frontend
-        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4 # v6.19.2
+        uses: docker/build-push-action@2ca78c6bec76527009825f31aae0532b4d40d820 # v6.19.2
         with:
           context: .
           file: frontend/Dockerfile
@@ -403,11 +403,11 @@ jobs:
       BUSINESS_TIMEZONE: ${{ vars.BUSINESS_TIMEZONE || 'Asia/Shanghai' }}
     steps:
       - name: Checkout the verified commit
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Log in to the GitHub Container Registry
-        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1 # v3.6.0
+        uses: docker/login-action@0a596b2e7a325f0cedf8e9bd21ab002cbd3c9241 # v3.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
