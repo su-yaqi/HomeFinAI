@@ -9,34 +9,23 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SignupRouteImport } from './routes/signup'
-import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as RecoverPasswordRouteImport } from './routes/recover-password'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as LayoutRouteImport } from './routes/_layout'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as RecoverPasswordRouteImport } from './routes/recover-password'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LayoutIndexRouteImport } from './routes/_layout/index'
-import { Route as LayoutTransactionsRouteImport } from './routes/_layout/transactions'
-import { Route as LayoutSettingsRouteImport } from './routes/_layout/settings'
-import { Route as LayoutBudgetsRouteImport } from './routes/_layout/budgets'
 import { Route as LayoutAdminRouteImport } from './routes/_layout/admin'
-import { Route as LayoutSystemDataManagementRouteImport } from './routes/_layout/system.data-management'
-import { Route as LayoutSystemCategoriesRouteImport } from './routes/_layout/system.categories'
-import { Route as LayoutSystemAccountsRouteImport } from './routes/_layout/system.accounts'
+import { Route as LayoutBudgetsRouteImport } from './routes/_layout/budgets'
+import { Route as LayoutSettingsRouteImport } from './routes/_layout/settings'
+import { Route as LayoutTransactionsRouteImport } from './routes/_layout/transactions'
 import { Route as LayoutConnectAuthorizeRouteImport } from './routes/_layout/connect.authorize'
+import { Route as LayoutSystemAccountsRouteImport } from './routes/_layout/system.accounts'
+import { Route as LayoutSystemCategoriesRouteImport } from './routes/_layout/system.categories'
+import { Route as LayoutSystemDataManagementRouteImport } from './routes/_layout/system.data-management'
 
-const SignupRoute = SignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RecoverPasswordRoute = RecoverPasswordRouteImport.update({
-  id: '/recover-password',
-  path: '/recover-password',
+const LayoutRoute = LayoutRouteImport.update({
+  id: '/_layout',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -44,8 +33,19 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LayoutRoute = LayoutRouteImport.update({
-  id: '/_layout',
+const RecoverPasswordRoute = RecoverPasswordRouteImport.update({
+  id: '/recover-password',
+  path: '/recover-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LayoutIndexRoute = LayoutIndexRouteImport.update({
@@ -53,14 +53,9 @@ const LayoutIndexRoute = LayoutIndexRouteImport.update({
   path: '/',
   getParentRoute: () => LayoutRoute,
 } as any)
-const LayoutTransactionsRoute = LayoutTransactionsRouteImport.update({
-  id: '/transactions',
-  path: '/transactions',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutSettingsRoute = LayoutSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
+const LayoutAdminRoute = LayoutAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutBudgetsRoute = LayoutBudgetsRouteImport.update({
@@ -68,9 +63,29 @@ const LayoutBudgetsRoute = LayoutBudgetsRouteImport.update({
   path: '/budgets',
   getParentRoute: () => LayoutRoute,
 } as any)
-const LayoutAdminRoute = LayoutAdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
+const LayoutSettingsRoute = LayoutSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutTransactionsRoute = LayoutTransactionsRouteImport.update({
+  id: '/transactions',
+  path: '/transactions',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutConnectAuthorizeRoute = LayoutConnectAuthorizeRouteImport.update({
+  id: '/connect/authorize',
+  path: '/connect/authorize',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutSystemAccountsRoute = LayoutSystemAccountsRouteImport.update({
+  id: '/system/accounts',
+  path: '/system/accounts',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutSystemCategoriesRoute = LayoutSystemCategoriesRouteImport.update({
+  id: '/system/categories',
+  path: '/system/categories',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutSystemDataManagementRoute =
@@ -79,21 +94,6 @@ const LayoutSystemDataManagementRoute =
     path: '/system/data-management',
     getParentRoute: () => LayoutRoute,
   } as any)
-const LayoutSystemCategoriesRoute = LayoutSystemCategoriesRouteImport.update({
-  id: '/system/categories',
-  path: '/system/categories',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutSystemAccountsRoute = LayoutSystemAccountsRouteImport.update({
-  id: '/system/accounts',
-  path: '/system/accounts',
-  getParentRoute: () => LayoutRoute,
-} as any)
-const LayoutConnectAuthorizeRoute = LayoutConnectAuthorizeRouteImport.update({
-  id: '/connect/authorize',
-  path: '/connect/authorize',
-  getParentRoute: () => LayoutRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof LayoutIndexRoute
@@ -201,25 +201,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/signup': {
-      id: '/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof SignupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/recover-password': {
-      id: '/recover-password'
-      path: '/recover-password'
-      fullPath: '/recover-password'
-      preLoaderRoute: typeof RecoverPasswordRouteImport
+    '/_layout': {
+      id: '/_layout'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof LayoutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -229,11 +215,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_layout': {
-      id: '/_layout'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof LayoutRouteImport
+    '/recover-password': {
+      id: '/recover-password'
+      path: '/recover-password'
+      fullPath: '/recover-password'
+      preLoaderRoute: typeof RecoverPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_layout/': {
@@ -243,18 +243,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/transactions': {
-      id: '/_layout/transactions'
-      path: '/transactions'
-      fullPath: '/transactions'
-      preLoaderRoute: typeof LayoutTransactionsRouteImport
-      parentRoute: typeof LayoutRoute
-    }
-    '/_layout/settings': {
-      id: '/_layout/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof LayoutSettingsRouteImport
+    '/_layout/admin': {
+      id: '/_layout/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof LayoutAdminRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/budgets': {
@@ -264,25 +257,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutBudgetsRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/admin': {
-      id: '/_layout/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof LayoutAdminRouteImport
+    '/_layout/settings': {
+      id: '/_layout/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof LayoutSettingsRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/system/data-management': {
-      id: '/_layout/system/data-management'
-      path: '/system/data-management'
-      fullPath: '/system/data-management'
-      preLoaderRoute: typeof LayoutSystemDataManagementRouteImport
+    '/_layout/transactions': {
+      id: '/_layout/transactions'
+      path: '/transactions'
+      fullPath: '/transactions'
+      preLoaderRoute: typeof LayoutTransactionsRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/system/categories': {
-      id: '/_layout/system/categories'
-      path: '/system/categories'
-      fullPath: '/system/categories'
-      preLoaderRoute: typeof LayoutSystemCategoriesRouteImport
+    '/_layout/connect/authorize': {
+      id: '/_layout/connect/authorize'
+      path: '/connect/authorize'
+      fullPath: '/connect/authorize'
+      preLoaderRoute: typeof LayoutConnectAuthorizeRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/system/accounts': {
@@ -292,11 +285,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutSystemAccountsRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/connect/authorize': {
-      id: '/_layout/connect/authorize'
-      path: '/connect/authorize'
-      fullPath: '/connect/authorize'
-      preLoaderRoute: typeof LayoutConnectAuthorizeRouteImport
+    '/_layout/system/categories': {
+      id: '/_layout/system/categories'
+      path: '/system/categories'
+      fullPath: '/system/categories'
+      preLoaderRoute: typeof LayoutSystemCategoriesRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/system/data-management': {
+      id: '/_layout/system/data-management'
+      path: '/system/data-management'
+      fullPath: '/system/data-management'
+      preLoaderRoute: typeof LayoutSystemDataManagementRouteImport
       parentRoute: typeof LayoutRoute
     }
   }
