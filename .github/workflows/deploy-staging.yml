@@ -24,7 +24,7 @@ jobs:
       frontend-image: ${{ steps.manifest.outputs.frontend-image }}
     steps:
       - name: Checkout main history
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -137,12 +137,12 @@ jobs:
       SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
     steps:
       - name: Checkout the verified commit
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: ${{ needs.verify.outputs.deploy-sha }}
       - name: Log in to the GitHub Container Registry
-        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1 # v3.6.0
+        uses: docker/login-action@0a596b2e7a325f0cedf8e9bd21ab002cbd3c9241 # v3.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
